@@ -1,0 +1,40 @@
+name: Build plugin
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+          - name: macos
+            os: macos-latest
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.name == 'macos' && 'x86_64-apple-darwin,aarch64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Tests
+        run: cargo test --release
+
+      - name: Bundle (Windows)
+        if: matrix.name == 'windows'
+        run: cargo xtask bundle happy_accident --release
+
+      - name: Bundle (macOS universel)
+        if: matrix.name == 'macos'
+        run: cargo xtask bundle-universal happy_accident --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HappyAccidentGenerator-${{ matrix.name }}
+          path: target/bundled/
