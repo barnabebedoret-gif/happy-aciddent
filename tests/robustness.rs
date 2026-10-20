@@ -30,6 +30,7 @@ fn trois_cents_accidents_sans_crash_ni_saturation() {
                 mix: next(),
                 out_gain: 1.0 + next() * 3.0,
                 key: (i % 12) as u8,
+                speed: [0.25, 0.5, 1.0, 2.0, 4.0][i % 5],
                 scale: [Scale::Minor, Scale::Major, Scale::PentaMinor, Scale::Phrygian][i % 4],
                 locks: [false; NUM_MODULES],
             };

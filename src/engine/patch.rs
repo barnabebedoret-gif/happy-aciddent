@@ -110,26 +110,30 @@ pub struct DriveP {
     pub tone: f32,
 }
 
-/// Filtre multimode.
+/// Filtre rythmé (pas de wah : le cutoff saute d'un pas à l'autre).
 /// mode : 0 = passe-bas, 1 = passe-bande, 2 = passe-haut, 3 = notch
-/// motion : 0 = LFO, 1 = steps (cutoff par pas, façon Tantra), 2 = sweep sur 1/2/4 mesures, 3 = enveloppe (auto-wah)
+/// motion : 0 = gate (ouvert / fermé selon un pattern), 1 = steps (un cutoff par pas),
+///          2 = escalier (montée / descente par paliers sur 1/2/4 mesures)
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FilterP {
     pub mode: u8,
     pub slope24: bool,
     pub motion: u8,
-    /// Cutoff de base (0..1, échelle log selon le mode)
+    /// Niveau du filtre "ouvert" (0..1)
     pub cutoff: f32,
     /// Résonance bridée : jamais d'auto-oscillation
     pub reso: f32,
-    /// Amplitude du mouvement
+    /// Écart entre ouvert et fermé
     pub depth: f32,
-    /// Cutoff de chaque pas (0..15)
+    /// Pattern ouvert/fermé (mode gate)
+    pub pattern: u16,
+    /// Cutoff de chaque pas (mode steps, 0..15)
     pub steps: [u8; 16],
     pub division: u8,
     pub sweep_bars: u8,
     /// 0 = montée, 1 = descente, 2 = aller-retour
     pub sweep_dir: u8,
+    /// Adoucissement des sauts (anti-clic, reste court)
     pub glide: f32,
     pub mix: f32,
 }
@@ -185,6 +189,7 @@ impl Default for Patch {
                 cutoff: 0.55,
                 reso: 0.35,
                 depth: 0.6,
+                pattern: 0b0110_1011_0101_1101,
                 steps: [12, 4, 8, 2, 14, 6, 10, 3, 12, 5, 9, 1, 15, 7, 11, 4],
                 division: 1,
                 sweep_bars: 1,
@@ -350,22 +355,29 @@ impl Patch {
             }
             if m.reroll() {
                 let r = m.rng.f32();
-                let p_step = 0.10 + 0.45 * tp;
-                let p_sweep = 0.18;
-                let p_env = 0.22 - 0.12 * tp;
-                f.motion = if r < p_step {
+                let p_steps = 0.25 + 0.15 * tp;
+                f.motion = if r < p_steps {
                     1
-                } else if r < p_step + p_sweep {
+                } else if r < p_steps + 0.15 {
                     2
-                } else if r < p_step + p_sweep + p_env {
-                    3
                 } else {
                     0
                 };
             }
-            f.cutoff = m.f(f.cutoff, 0.15, 0.9);
-            f.reso = m.f(f.reso, 0.05, 0.75);
+            f.cutoff = m.f(f.cutoff, 0.4, 0.95);
+            f.reso = m.f(f.reso, 0.05, 0.7);
             f.depth = m.f(f.depth, 0.3, 1.0);
+            let density = 0.4 + 0.35 * m.rng.f32();
+            for b in 1..16 {
+                if m.reroll() {
+                    if m.rng.chance(density) {
+                        f.pattern |= 1 << b;
+                    } else {
+                        f.pattern &= !(1 << b);
+                    }
+                }
+            }
+            f.pattern |= 1;
             for st in f.steps.iter_mut() {
                 if m.reroll() {
                     *st = m.rng.below(16) as u8;
@@ -375,7 +387,7 @@ impl Patch {
             f.sweep_bars = m.u8(f.sweep_bars, 3);
             f.sweep_dir = m.u8(f.sweep_dir, 3);
             f.glide = m.f(f.glide, 0.0, 1.0);
-            f.mix = m.f(f.mix, 0.75, 1.0);
+            f.mix = m.f(f.mix, 0.85, 1.0);
         }
 
         // --- Space
@@ -428,11 +440,11 @@ impl Patch {
                 let f = &self.filter;
                 let mode = ["LP", "BP", "HP", "Notch"][f.mode as usize % 4];
                 let slope = if f.slope24 { "24" } else { "12" };
+                let div = DIV_NAMES[f.division as usize % 4];
                 let motion = match f.motion {
-                    1 => format!("Steps {}", DIV_NAMES[f.division as usize % 4]),
-                    2 => format!("Sweep {} mes. {}", [1, 2, 4][f.sweep_bars as usize % 3], ["↑", "↓", "↕"][f.sweep_dir as usize % 3]),
-                    3 => "Auto-wah".to_string(),
-                    _ => "LFO".to_string(),
+                    1 => format!("Steps {}", div),
+                    2 => format!("Escalier {} mes. {}", [1, 2, 4][f.sweep_bars as usize % 3], ["↑", "↓", "↕"][f.sweep_dir as usize % 3]),
+                    _ => format!("Gate {} · {}/16", div, f.pattern.count_ones()),
                 };
                 format!("{}{} · {}", mode, slope, motion)
             }

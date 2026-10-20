@@ -221,61 +221,62 @@ pub struct Filter {
     st1: [Svf; 2],
     st2: [Svf; 2],
     cut: f32,
-    env: f32,
     init: bool,
 }
 
 impl Default for Filter {
     fn default() -> Self {
-        Filter { st1: [Svf::default(); 2], st2: [Svf::default(); 2], cut: 0.0, env: 0.0, init: false }
+        Filter { st1: [Svf::default(); 2], st2: [Svf::default(); 2], cut: 0.0, init: false }
     }
 }
 
 impl Filter {
-    pub fn process(&mut self, l: f32, r: f32, p: &FilterP, c: &Ctx, m: f32) -> (f32, f32) {
-        // Plage de cutoff selon le mode (en log2 Hz)
+    /// `jitter` (= Movement) ajoute un décalage aléatoire par pas, jamais de balayage continu.
+    pub fn process(&mut self, l: f32, r: f32, p: &FilterP, c: &Ctx, jitter: f32) -> (f32, f32) {
         let (lo, hi): (f32, f32) = match p.mode {
-            0 => (150.0, 9000.0),
+            0 => (150.0, 10000.0),
             1 => (250.0, 5000.0),
-            2 => (80.0, 3000.0),
+            2 => (60.0, 4000.0),
             _ => (250.0, 6000.0),
         };
         let range = (hi / lo).log2();
-        let base = lo.log2() + range * p.cutoff;
+        // "Fermer" = plus filtré : le passe-bas descend, le passe-haut monte
+        let dir = if p.mode == 2 || p.mode == 3 { 1.0 } else { -1.0 };
+        let div = DIVS[p.division as usize % 4];
+        let step = step_index(c.beat, div);
+        let s16 = step.rem_euclid(16) as usize;
 
-        let motion_oct = match p.motion {
-            1 => {
-                let div = DIVS[p.division as usize % 4];
-                let st = p.steps[step_index(c.beat, div).rem_euclid(16) as usize] as f32 / 15.0;
-                (st - p.cutoff) * range * (0.5 + 0.5 * p.depth)
-            }
+        let target = match p.motion {
+            1 => lo.log2() + range * (p.steps[s16] as f32 / 15.0),
             2 => {
                 let len = [4.0, 8.0, 16.0][p.sweep_bars as usize % 3];
-                let ph = (c.beat / len).rem_euclid(1.0) as f32;
+                let n = (len / div).round().max(2.0);
+                let k = (c.beat / div).floor().rem_euclid(n);
+                let ph = (k / (n - 1.0)) as f32;
                 let shape = match p.sweep_dir {
                     0 => ph,
                     1 => 1.0 - ph,
                     _ => 1.0 - (2.0 * ph - 1.0).abs(),
                 };
-                (shape - 0.5) * range * p.depth * 1.2
+                lo.log2() + range * (0.08 + 0.87 * shape)
             }
-            3 => {
-                let a = l.abs().max(r.abs());
-                let coef = if a > self.env { 1.0 - (-1.0 / (0.004 * c.sr)).exp() } else { 1.0 - (-1.0 / (0.15 * c.sr)).exp() };
-                self.env += coef * (a - self.env);
-                ((self.env * 6.0).min(1.0) - 0.3) * 5.0 * p.depth
+            _ => {
+                let open01 = if dir > 0.0 { (1.0 - p.cutoff) * 0.5 } else { p.cutoff };
+                let open = lo.log2() + range * open01;
+                if (p.pattern >> s16) & 1 == 1 {
+                    open
+                } else {
+                    open + dir * (1.5 + 4.0 * p.depth)
+                }
             }
-            _ => 0.0,
         };
-        // Le LFO de mouvement domine en mode LFO, reste discret sinon
-        let lfo_oct = if p.motion == 0 { m * 4.0 } else { m * 0.75 };
-        let target = base + motion_oct + lfo_oct;
+        let target = target + (hash01(c.seed ^ 0xF117, step as u64) - 0.5) * 3.0 * jitter;
 
         if !self.init {
             self.cut = target;
             self.init = true;
         }
-        let glide_ms = if p.motion == 1 { 1.0 + p.glide * 60.0 } else { 3.0 };
+        let glide_ms = 0.7 + p.glide * if p.motion == 0 { 3.0 } else { 10.0 };
         self.cut += (1.0 - (-1.0 / (glide_ms * 0.001 * c.sr)).exp()) * (target - self.cut);
 
         let freq = 2f32.powf(self.cut).clamp(30.0, c.sr * 0.45);

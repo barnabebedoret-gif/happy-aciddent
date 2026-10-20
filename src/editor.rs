@@ -90,6 +90,9 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                     ui.label(RichText::new("OUTPUT").size(12.0).color(DIM));
                     ui.add(widgets::ParamSlider::for_param(&params.output, setter).with_width(200.0));
                     ui.end_row();
+                    ui.label(RichText::new("SPEED").size(12.0).color(DIM));
+                    ui.add(widgets::ParamSlider::for_param(&params.speed, setter).with_width(200.0));
+                    ui.end_row();
                 });
                 ui.add_space(12.0);
 

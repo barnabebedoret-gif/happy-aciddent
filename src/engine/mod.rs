@@ -24,12 +24,14 @@ pub struct Macros {
     pub out_gain: f32,
     pub key: u8,
     pub scale: Scale,
+    /// Vitesse des rythmes (0.25 = 4× plus lent, 4 = 4× plus rapide)
+    pub speed: f32,
     pub locks: [bool; NUM_MODULES],
 }
 
 impl Default for Macros {
     fn default() -> Self {
-        Macros { chaos: 0.6, balance: 0.5, movement: 0.4, mix: 1.0, out_gain: 1.0, key: 9, scale: Scale::Minor, locks: [false; NUM_MODULES] }
+        Macros { chaos: 0.6, balance: 0.5, movement: 0.4, mix: 1.0, out_gain: 1.0, key: 9, scale: Scale::Minor, speed: 1.0, locks: [false; NUM_MODULES] }
     }
 }
 
@@ -238,7 +240,10 @@ impl Engine {
                 self.fade = (self.fade + fade_step).min(1.0);
             }
 
-            let c = Ctx { sr: self.sr, beat: self.beat, spb, key: m.key as i32, scale: m.scale, seed: self.patch.seed as u64 };
+            // Horloge accélérée / ralentie pour les modules rythmiques ; Space reste au vrai tempo
+            let speed = m.speed.clamp(0.0625, 16.0) as f64;
+            let c = Ctx { sr: self.sr, beat: self.beat * speed, spb: spb / speed, key: m.key as i32, scale: m.scale, seed: self.patch.seed as u64 };
+            let c_space = Ctx { beat: self.beat, spb, ..c };
             let p = self.patch;
             let (mut x, mut y) = (dl, dr);
             for &mi in p.order.iter() {
@@ -246,16 +251,14 @@ impl Engine {
                 if !p.enabled[mi] {
                     continue;
                 }
-                // Le filtre bouge toujours un peu, même Movement à 0
-                let amt = if KINDS[mi] == ModuleKind::Filter { 0.25 + 0.75 * m.movement } else { m.movement };
-                let mv = lfo_value(&p.lfo[mi], self.beat, c.seed, mi as u64) * p.lfo[mi].depth * amt;
+                let mv = lfo_value(&p.lfo[mi], c.beat, c.seed, mi as u64) * p.lfo[mi].depth * m.movement;
                 (x, y) = match KINDS[mi] {
                     ModuleKind::Gate => self.gate.process(x, y, &p.gate, &c, mv),
                     ModuleKind::Stutter => self.stutter.process(x, y, &p.stutter, &c),
                     ModuleKind::Pitch => self.pitch.process(x, y, &p.pitch, &c, mv),
                     ModuleKind::Drive => self.drive.process(x, y, &p.drive, &c, mv),
-                    ModuleKind::Filter => self.filter.process(x, y, &p.filter, &c, mv),
-                    ModuleKind::Space => self.space.process(x, y, &p.space, &c, mv),
+                    ModuleKind::Filter => self.filter.process(x, y, &p.filter, &c, m.movement),
+                    ModuleKind::Space => self.space.process(x, y, &p.space, &c_space, mv),
                 };
             }
             let x = self.dc_l.process(x);

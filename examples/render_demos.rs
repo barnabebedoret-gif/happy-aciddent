@@ -32,11 +32,12 @@ fn main() {
     // (balance, chaos, label)
     let runs = [(0.1, 0.9, "Timbre"), (0.15, 1.0, "Timbre"), (0.5, 0.9, "Les deux"), (0.5, 1.0, "Les deux"), (0.9, 0.9, "Pattern"), (0.95, 1.0, "Pattern")];
     for (k, (balance, chaos, label)) in runs.iter().enumerate() {
-        let m = Macros { balance: *balance, chaos: *chaos, movement: 0.5, ..Macros::default() };
+        let speed = [1.0, 2.0, 1.0, 0.5, 1.0, 2.0][k];
+        let m = Macros { balance: *balance, chaos: *chaos, movement: 0.3, speed, ..Macros::default() };
         // On tire jusqu'à ~5 fois pour éviter les accidents trop sages dans la démo
         e.accident(&m);
         // Démo : on montre chaque type de mouvement du filtre
-        let want = [2u8, 1, 0, 1, 2, 1][k];
+        let want = [0u8, 0, 1, 0, 2, 1][k];
         for _ in 0..40 {
             let p = e.patch();
             if p.enabled[4] && p.filter.motion == want {
@@ -52,7 +53,7 @@ fn main() {
             .filter(|&i| p.enabled[i])
             .map(|i| format!("{} ({})", KINDS[i].name(), p.describe(KINDS[i])))
             .collect();
-        println!("{}. [{}] #{:08X} : {}", k + 1, label, p.seed, chain.join(" → "));
+        println!("{}. [{}] Speed {}× #{:08X} : {}", k + 1, label, speed, p.seed, chain.join(" → "));
 
         // Petite pré-chauffe pour que le fondu de changement soit passé
         let mut t = Transport { tempo, playing: true, pos_beats: Some(-0.25) };

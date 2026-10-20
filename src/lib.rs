@@ -40,6 +40,32 @@ impl From<ScaleParam> for Scale {
     }
 }
 
+#[derive(Enum, PartialEq, Eq, Clone, Copy, Debug)]
+pub enum SpeedParam {
+    #[name = "1/4"]
+    Quarter,
+    #[name = "1/2"]
+    Half,
+    #[name = "1×"]
+    Normal,
+    #[name = "2×"]
+    Double,
+    #[name = "4×"]
+    Quad,
+}
+
+impl SpeedParam {
+    pub fn factor(self) -> f32 {
+        match self {
+            SpeedParam::Quarter => 0.25,
+            SpeedParam::Half => 0.5,
+            SpeedParam::Normal => 1.0,
+            SpeedParam::Double => 2.0,
+            SpeedParam::Quad => 4.0,
+        }
+    }
+}
+
 pub const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 /// Communication interface <-> thread audio (sans verrou côté audio).
@@ -76,6 +102,8 @@ pub struct HaParams {
     pub key: IntParam,
     #[id = "scale"]
     pub scale: EnumParam<ScaleParam>,
+    #[id = "speed"]
+    pub speed: EnumParam<SpeedParam>,
 
     #[id = "lock0"]
     pub lock0: BoolParam,
@@ -134,6 +162,7 @@ impl Default for HaParams {
             key: IntParam::new("Tonalité", 9, IntRange::Linear { min: 0, max: 11 })
                 .with_value_to_string(Arc::new(|v| NOTE_NAMES[v.clamp(0, 11) as usize].to_string())),
             scale: EnumParam::new("Gamme", ScaleParam::Minor),
+            speed: EnumParam::new("Speed", SpeedParam::Normal),
             lock0: BoolParam::new("Lock Gate", false),
             lock1: BoolParam::new("Lock Stutter", false),
             lock2: BoolParam::new("Lock Pitch", false),
@@ -161,6 +190,7 @@ impl HaParams {
             out_gain: self.output.value(),
             key: self.key.value() as u8,
             scale: self.scale.value().into(),
+            speed: self.speed.value().factor(),
             locks: [l[0].value(), l[1].value(), l[2].value(), l[3].value(), l[4].value(), l[5].value()],
         }
     }
