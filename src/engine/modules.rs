@@ -216,75 +216,92 @@ impl Drive {
     }
 }
 
-// ---------------------------------------------------------------- RESO / FORMANT
-const FORMANTS: [[f32; 3]; 5] = [
-    [800.0, 1150.0, 2900.0], // A
-    [400.0, 1600.0, 2700.0], // E
-    [270.0, 2290.0, 3010.0], // I
-    [450.0, 800.0, 2830.0],  // O
-    [325.0, 700.0, 2700.0],  // U
-];
-
-pub struct Reso {
-    dl: DelayLine,
-    dr: DelayLine,
-    damp_l: OnePole,
-    damp_r: OnePole,
-    bp_l: [Svf; 3],
-    bp_r: [Svf; 3],
+// ---------------------------------------------------------------- FILTER
+pub struct Filter {
+    st1: [Svf; 2],
+    st2: [Svf; 2],
+    cut: f32,
+    env: f32,
+    init: bool,
 }
 
-impl Reso {
-    pub fn new(sr: f32) -> Self {
-        let n = (sr * 0.1) as usize;
-        Reso {
-            dl: DelayLine::new(n),
-            dr: DelayLine::new(n),
-            damp_l: OnePole::default(),
-            damp_r: OnePole::default(),
-            bp_l: [Svf::default(); 3],
-            bp_r: [Svf::default(); 3],
-        }
+impl Default for Filter {
+    fn default() -> Self {
+        Filter { st1: [Svf::default(); 2], st2: [Svf::default(); 2], cut: 0.0, env: 0.0, init: false }
     }
+}
 
-    pub fn process(&mut self, l: f32, r: f32, p: &ResoP, c: &Ctx, m: f32) -> (f32, f32) {
-        let (yl, yr) = if p.mode == 0 {
-            let note = 36 + c.key + c.scale.degree_to_semis(p.degree as i32) + 12 * p.octave as i32;
-            let d = c.sr / midi_to_hz(note as f32);
-            let fb = p.feedback;
-            let damp = OnePole::coef(1500.0 + 7000.0 * (0.5 + 0.5 * m), c.sr);
-            let ol = self.dl.read(d - 1.0);
-            let or = self.dr.read(d * 1.003 - 1.0);
-            let fl = self.damp_l.lp(ol, damp);
-            let fr = self.damp_r.lp(or, damp);
-            self.dl.write(sanitize(l + fb * fl));
-            self.dr.write(sanitize(r + fb * fr));
-            let norm = (1.0 - fb).sqrt();
-            (ol * norm, or * norm)
-        } else {
-            let v = ((p.vowel + m * 0.4).clamp(0.0, 1.0)) * 4.0;
-            let i = (v.floor() as usize).min(3);
-            let f = v - i as f32;
-            let gains = [1.0, 0.7, 0.5];
-            let mut yl = 0.0;
-            let mut yr = 0.0;
-            for k in 0..3 {
-                let freq = FORMANTS[i][k] + (FORMANTS[i + 1][k] - FORMANTS[i][k]) * f;
-                yl += self.bp_l[k].process(l, freq, 9.0, c.sr).1 * gains[k];
-                yr += self.bp_r[k].process(r, freq * 1.01, 9.0, c.sr).1 * gains[k];
-            }
-            (yl * 3.0, yr * 3.0)
+impl Filter {
+    pub fn process(&mut self, l: f32, r: f32, p: &FilterP, c: &Ctx, m: f32) -> (f32, f32) {
+        // Plage de cutoff selon le mode (en log2 Hz)
+        let (lo, hi): (f32, f32) = match p.mode {
+            0 => (150.0, 9000.0),
+            1 => (250.0, 5000.0),
+            2 => (80.0, 3000.0),
+            _ => (250.0, 6000.0),
         };
+        let range = (hi / lo).log2();
+        let base = lo.log2() + range * p.cutoff;
+
+        let motion_oct = match p.motion {
+            1 => {
+                let div = DIVS[p.division as usize % 4];
+                let st = p.steps[step_index(c.beat, div).rem_euclid(16) as usize] as f32 / 15.0;
+                (st - p.cutoff) * range * (0.5 + 0.5 * p.depth)
+            }
+            2 => {
+                let len = [4.0, 8.0, 16.0][p.sweep_bars as usize % 3];
+                let ph = (c.beat / len).rem_euclid(1.0) as f32;
+                let shape = match p.sweep_dir {
+                    0 => ph,
+                    1 => 1.0 - ph,
+                    _ => 1.0 - (2.0 * ph - 1.0).abs(),
+                };
+                (shape - 0.5) * range * p.depth * 1.2
+            }
+            3 => {
+                let a = l.abs().max(r.abs());
+                let coef = if a > self.env { 1.0 - (-1.0 / (0.004 * c.sr)).exp() } else { 1.0 - (-1.0 / (0.15 * c.sr)).exp() };
+                self.env += coef * (a - self.env);
+                ((self.env * 6.0).min(1.0) - 0.3) * 5.0 * p.depth
+            }
+            _ => 0.0,
+        };
+        // Le LFO de mouvement domine en mode LFO, reste discret sinon
+        let lfo_oct = if p.motion == 0 { m * 4.0 } else { m * 0.75 };
+        let target = base + motion_oct + lfo_oct;
+
+        if !self.init {
+            self.cut = target;
+            self.init = true;
+        }
+        let glide_ms = if p.motion == 1 { 1.0 + p.glide * 60.0 } else { 3.0 };
+        self.cut += (1.0 - (-1.0 / (glide_ms * 0.001 * c.sr)).exp()) * (target - self.cut);
+
+        let freq = 2f32.powf(self.cut).clamp(30.0, c.sr * 0.45);
+        let q = 0.6 + p.reso * p.reso * if p.slope24 { 3.0 } else { 6.0 };
+        let (g, k) = Svf::coefs(freq, q, c.sr);
+
+        let mut out = [l, r];
+        for ch in 0..2 {
+            let pick = |(lp, bp, hp): (f32, f32, f32)| match p.mode {
+                0 => lp,
+                1 => bp * 1.6,
+                2 => hp,
+                _ => lp + hp,
+            };
+            let mut y = pick(self.st1[ch].tick(out[ch], g, k));
+            if p.slope24 {
+                y = pick(self.st2[ch].tick(y, g, k));
+            }
+            out[ch] = y;
+        }
         let mx = p.mix;
-        (l * (1.0 - mx) + yl * mx, r * (1.0 - mx) + yr * mx)
+        (l * (1.0 - mx) + out[0] * mx, r * (1.0 - mx) + out[1] * mx)
     }
 
     pub fn reset(&mut self) {
-        self.dl.clear();
-        self.dr.clear();
-        self.damp_l = OnePole::default();
-        self.damp_r = OnePole::default();
-        self.bp_l.iter_mut().chain(self.bp_r.iter_mut()).for_each(|f| f.reset());
+        *self = Filter::default();
     }
 }
 
@@ -297,12 +314,32 @@ pub struct Space {
     d_smooth: f32,
     lp_l: OnePole,
     lp_r: OnePole,
+    fb_l: Svf,
+    fb_r: Svf,
 }
 
 impl Space {
     pub fn new(sr: f32) -> Self {
         let n = (sr * 2.5) as usize;
-        Space { dl: DelayLine::new(n), dr: DelayLine::new(n), d_smooth: 0.0, lp_l: OnePole::default(), lp_r: OnePole::default() }
+        Space {
+            dl: DelayLine::new(n),
+            dr: DelayLine::new(n),
+            d_smooth: 0.0,
+            lp_l: OnePole::default(),
+            lp_r: OnePole::default(),
+            fb_l: Svf::default(),
+            fb_r: Svf::default(),
+        }
+    }
+
+    fn synced_delay(&mut self, p: &SpaceP, c: &Ctx) -> f32 {
+        let target = (SPACE_BEATS[p.time as usize % 4] * c.spb) as f32;
+        let target = target.min((self.dl.capacity() - 8) as f32);
+        if self.d_smooth <= 0.0 {
+            self.d_smooth = target;
+        }
+        self.d_smooth += (target - self.d_smooth) * 0.0005;
+        self.d_smooth
     }
 
     pub fn process(&mut self, l: f32, r: f32, p: &SpaceP, c: &Ctx, m: f32) -> (f32, f32) {
@@ -310,13 +347,7 @@ impl Space {
         match p.mode {
             0 => {
                 // Ping-pong synchronisé
-                let target = (SPACE_BEATS[p.time as usize % 4] * c.spb) as f32;
-                let target = target.min((self.dl.capacity() - 8) as f32);
-                if self.d_smooth <= 0.0 {
-                    self.d_smooth = target;
-                }
-                self.d_smooth += (target - self.d_smooth) * 0.0005;
-                let d = self.d_smooth;
+                let d = self.synced_delay(p, c);
                 let ol = self.dl.read(d - 1.0);
                 let or = self.dr.read(d - 1.0);
                 let k = OnePole::coef(4500.0 + 2500.0 * m, c.sr);
@@ -328,33 +359,29 @@ impl Space {
                 (l + ol * mx, r + or * mx)
             }
             1 => {
-                // Flanger
-                let period = 2.0 + 6.0 * (1.0 - p.time as f64 / 3.0);
-                let ph = (c.beat / period).rem_euclid(1.0) as f32;
-                let depth = 0.6 + 0.4 * m.abs();
-                let ms_l = 1.0 + 3.0 * depth * (1.0 + (2.0 * PI * ph).sin());
-                let ms_r = 1.0 + 3.0 * depth * (1.0 + (2.0 * PI * (ph + 0.25)).sin());
-                let ol = self.dl.read(ms_l * 0.001 * c.sr);
-                let or = self.dr.read(ms_r * 0.001 * c.sr);
-                let fb = p.feedback * 0.9;
-                self.dl.write(sanitize(l + fb * ol));
-                self.dr.write(sanitize(r + fb * or));
-                (l * (1.0 - mx * 0.5) + ol * mx, r * (1.0 - mx * 0.5) + or * mx)
-            }
-            _ => {
-                // Métallique : deux peignes courts à longueurs "aléatoires"
-                let d_l = c.sr * (0.003 + 0.011 * hash01(c.seed, 11));
-                let d_r = c.sr * (0.003 + 0.011 * hash01(c.seed, 12));
-                let fb = 0.55 + 0.35 * p.feedback;
-                let ol = self.dl.read(d_l - 1.0);
-                let or = self.dr.read(d_r - 1.0);
-                let k = OnePole::coef(6000.0, c.sr);
-                let fl = self.lp_l.lp(ol, k);
-                let fr = self.lp_r.lp(or, k);
+                // Delay dub : passe-bande qui bouge dans la boucle de feedback
+                let d = self.synced_delay(p, c);
+                let ol = self.dl.read(d - 1.0);
+                let or = self.dr.read(d * 0.75 - 1.0);
+                let fc = 1100.0 * 2f32.powf(m * 2.0 + (hash01(c.seed, 21) - 0.5) * 2.0);
+                let (g, k) = Svf::coefs(fc, 1.2, c.sr);
+                let fl = self.fb_l.tick(ol, g, k).1 * 1.4;
+                let fr = self.fb_r.tick(or, g, k).1 * 1.4;
+                let fb = p.feedback.min(0.7);
                 self.dl.write(sanitize(l + fb * fl));
                 self.dr.write(sanitize(r + fb * fr));
-                let norm = (1.0 - fb).sqrt();
-                (l * (1.0 - mx) + ol * norm * mx * 1.5, r * (1.0 - mx) + or * norm * mx * 1.5)
+                (l + fl * mx, r + fr * mx)
+            }
+            _ => {
+                // Chorus large, sans feedback
+                let ph = (c.beat / 4.0).rem_euclid(1.0) as f32;
+                let s1 = (2.0 * PI * ph).sin();
+                let s2 = (2.0 * PI * (ph + 0.5)).sin();
+                let ol = self.dl.read((9.0 + 3.0 * s1) * 0.001 * c.sr);
+                let or = self.dr.read((11.0 + 3.0 * s2) * 0.001 * c.sr);
+                self.dl.write(l);
+                self.dr.write(r);
+                (l * (1.0 - mx * 0.4) + ol * mx, r * (1.0 - mx * 0.4) + or * mx)
             }
         }
     }
@@ -365,5 +392,7 @@ impl Space {
         self.d_smooth = 0.0;
         self.lp_l = OnePole::default();
         self.lp_r = OnePole::default();
+        self.fb_l.reset();
+        self.fb_r.reset();
     }
 }

@@ -18,9 +18,9 @@ Multi-FX aléatoire pour transformer des leads et trouver des idées. Format VST
 - **ACCIDENT** : nouveau tirage. **Chaos** règle à quel point il est radical.
 - **MUTATE** : petite variation de l'accident en cours.
 - **◀ ▶** : retour aux 16 derniers accidents. L'historique est sauvegardé avec ton projet Ableton.
-- **Timbre ↔ Pattern** : oriente le hasard vers le son (drive, résonateur…) ou vers le rythme et la mélodie (gate, stutter, pitch en séquence).
+- **Timbre ↔ Pattern** : oriente le hasard vers le son (filtre, drive…) ou vers le rythme et la mélodie (gate, stutter, pitch en séquence).
 - **Movement** : quantité de modulation synchronisée au tempo.
-- **Tonalité / Gamme** : le pitch et le résonateur restent dans la gamme.
+- **Tonalité / Gamme** : le pitch reste dans la gamme.
 - **Lock** sur chaque module : il ne bouge plus aux prochains tirages.
 - ACCIDENT et MUTATE sont aussi des paramètres, donc tu peux les mapper sur un pad MIDI (Configure dans Ableton).
 - Un limiteur et une compensation de volume protègent la sortie.

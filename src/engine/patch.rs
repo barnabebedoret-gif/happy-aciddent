@@ -12,7 +12,7 @@ pub enum ModuleKind {
     Stutter,
     Pitch,
     Drive,
-    Reso,
+    Filter,
     Space,
 }
 
@@ -21,7 +21,7 @@ pub const KINDS: [ModuleKind; NUM_MODULES] = [
     ModuleKind::Stutter,
     ModuleKind::Pitch,
     ModuleKind::Drive,
-    ModuleKind::Reso,
+    ModuleKind::Filter,
     ModuleKind::Space,
 ];
 
@@ -32,7 +32,7 @@ impl ModuleKind {
             ModuleKind::Stutter => "STUTTER",
             ModuleKind::Pitch => "PITCH",
             ModuleKind::Drive => "DRIVE",
-            ModuleKind::Reso => "RESO",
+            ModuleKind::Filter => "FILTER",
             ModuleKind::Space => "SPACE",
         }
     }
@@ -110,18 +110,31 @@ pub struct DriveP {
     pub tone: f32,
 }
 
-/// mode: 0 = résonateur accordé, 1 = formant (voyelles)
+/// Filtre multimode.
+/// mode : 0 = passe-bas, 1 = passe-bande, 2 = passe-haut, 3 = notch
+/// motion : 0 = LFO, 1 = steps (cutoff par pas, façon Tantra), 2 = sweep sur 1/2/4 mesures, 3 = enveloppe (auto-wah)
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ResoP {
+pub struct FilterP {
     pub mode: u8,
-    pub degree: i8,
-    pub octave: u8,
-    pub feedback: f32,
-    pub vowel: f32,
+    pub slope24: bool,
+    pub motion: u8,
+    /// Cutoff de base (0..1, échelle log selon le mode)
+    pub cutoff: f32,
+    /// Résonance bridée : jamais d'auto-oscillation
+    pub reso: f32,
+    /// Amplitude du mouvement
+    pub depth: f32,
+    /// Cutoff de chaque pas (0..15)
+    pub steps: [u8; 16],
+    pub division: u8,
+    pub sweep_bars: u8,
+    /// 0 = montée, 1 = descente, 2 = aller-retour
+    pub sweep_dir: u8,
+    pub glide: f32,
     pub mix: f32,
 }
 
-/// mode: 0 = delay ping-pong, 1 = flanger, 2 = métallique
+/// mode: 0 = delay ping-pong, 1 = delay filtré (dub), 2 = chorus
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SpaceP {
     pub mode: u8,
@@ -149,7 +162,7 @@ pub struct Patch {
     pub stutter: StutterP,
     pub pitch: PitchP,
     pub drive: DriveP,
-    pub reso: ResoP,
+    pub filter: FilterP,
     pub space: SpaceP,
     pub lfo: [ModLfo; NUM_MODULES],
 }
@@ -159,13 +172,26 @@ impl Default for Patch {
     fn default() -> Self {
         Patch {
             seed: 0,
-            enabled: [false, false, false, true, false, true],
+            enabled: [false, false, false, false, true, true],
             order: [0, 1, 2, 3, 4, 5],
             gate: GateP { pattern: 0b1011_0110_1101_1011, division: 1, depth: 0.8, smooth: 0.3 },
             stutter: StutterP { events: [0; 16], division: 1, repeats: 2, decay: 0.9 },
             pitch: PitchP { steps: [0; 8], patterned: false, division: 0, blend: 0.5, grain: 0.5 },
             drive: DriveP { mode: 0, amount: 0.3, tone: 0.7 },
-            reso: ResoP { mode: 0, degree: 0, octave: 1, feedback: 0.8, vowel: 0.5, mix: 0.5 },
+            filter: FilterP {
+                mode: 0,
+                slope24: true,
+                motion: 0,
+                cutoff: 0.55,
+                reso: 0.35,
+                depth: 0.6,
+                steps: [12, 4, 8, 2, 14, 6, 10, 3, 12, 5, 9, 1, 15, 7, 11, 4],
+                division: 1,
+                sweep_bars: 1,
+                sweep_dir: 0,
+                glide: 0.3,
+                mix: 1.0,
+            },
             space: SpaceP { mode: 0, time: 1, feedback: 0.35, mix: 0.25 },
             lfo: [ModLfo { rate: 2, shape: 0, depth: 0.5 }; NUM_MODULES],
         }
@@ -214,9 +240,9 @@ impl Patch {
             0.15 + 0.70 * tp, // Gate
             0.10 + 0.65 * tp, // Stutter
             0.45,             // Pitch
-            0.85 - 0.55 * tp, // Drive
-            0.75 - 0.50 * tp, // Reso
-            0.50,             // Space
+            0.70 - 0.45 * tp, // Drive
+            0.90,             // Filter : quasi toujours là
+            0.45,             // Space
         ];
         for i in 0..NUM_MODULES {
             if !locks[i] && m.reroll() {
@@ -225,7 +251,7 @@ impl Patch {
         }
         if !p.enabled.iter().any(|&e| e) {
             // Au moins un module actif : on choisit selon la balance
-            let i = if m.rng.chance(tp) { m.rng.pick(&[0usize, 1, 2]) } else { m.rng.pick(&[3usize, 4]) };
+            let i = if m.rng.chance(tp) { m.rng.pick(&[0usize, 1, 2]) } else { m.rng.pick(&[3usize, 4, 4]) };
             p.enabled[i] = true;
         }
 
@@ -313,17 +339,43 @@ impl Patch {
             d.tone = m.f(d.tone, 0.2, 1.0);
         }
 
-        // --- Reso / formant
+        // --- Filter
         if !locks[4] {
-            let r = &mut p.reso;
-            r.mode = m.u8(r.mode, 2);
+            let f = &mut p.filter;
             if m.reroll() {
-                r.degree = m.rng.below(7) as i8;
+                f.mode = m.rng.pick(&[0u8, 0, 0, 1, 1, 2, 2, 3]); // passe-bas favorisé
             }
-            r.octave = m.u8(r.octave, 3);
-            r.feedback = m.f(r.feedback, 0.7, 0.97);
-            r.vowel = m.f(r.vowel, 0.0, 1.0);
-            r.mix = m.f(r.mix, 0.35, 0.9);
+            if m.reroll() {
+                f.slope24 = m.rng.chance(0.6);
+            }
+            if m.reroll() {
+                let r = m.rng.f32();
+                let p_step = 0.10 + 0.45 * tp;
+                let p_sweep = 0.18;
+                let p_env = 0.22 - 0.12 * tp;
+                f.motion = if r < p_step {
+                    1
+                } else if r < p_step + p_sweep {
+                    2
+                } else if r < p_step + p_sweep + p_env {
+                    3
+                } else {
+                    0
+                };
+            }
+            f.cutoff = m.f(f.cutoff, 0.15, 0.9);
+            f.reso = m.f(f.reso, 0.05, 0.75);
+            f.depth = m.f(f.depth, 0.3, 1.0);
+            for st in f.steps.iter_mut() {
+                if m.reroll() {
+                    *st = m.rng.below(16) as u8;
+                }
+            }
+            f.division = m.u8(f.division, 4);
+            f.sweep_bars = m.u8(f.sweep_bars, 3);
+            f.sweep_dir = m.u8(f.sweep_dir, 3);
+            f.glide = m.f(f.glide, 0.0, 1.0);
+            f.mix = m.f(f.mix, 0.75, 1.0);
         }
 
         // --- Space
@@ -372,16 +424,20 @@ impl Patch {
                 let mode = ["Saturation", "Wavefold", "Bitcrush"][self.drive.mode as usize % 3];
                 format!("{} {:.0}%", mode, self.drive.amount * 100.0)
             }
-            ModuleKind::Reso => {
-                if self.reso.mode == 0 {
-                    format!("Résonateur · degré {}", self.reso.degree + 1)
-                } else {
-                    let v = ["A", "E", "I", "O", "U"][((self.reso.vowel * 4.0).round() as usize).min(4)];
-                    format!("Formant · {}", v)
-                }
+            ModuleKind::Filter => {
+                let f = &self.filter;
+                let mode = ["LP", "BP", "HP", "Notch"][f.mode as usize % 4];
+                let slope = if f.slope24 { "24" } else { "12" };
+                let motion = match f.motion {
+                    1 => format!("Steps {}", DIV_NAMES[f.division as usize % 4]),
+                    2 => format!("Sweep {} mes. {}", [1, 2, 4][f.sweep_bars as usize % 3], ["↑", "↓", "↕"][f.sweep_dir as usize % 3]),
+                    3 => "Auto-wah".to_string(),
+                    _ => "LFO".to_string(),
+                };
+                format!("{}{} · {}", mode, slope, motion)
             }
             ModuleKind::Space => {
-                let mode = ["Ping-pong", "Flanger", "Métallique"][self.space.mode as usize % 3];
+                let mode = ["Ping-pong", "Dub filtré", "Chorus"][self.space.mode as usize % 3];
                 format!("{} · {:.0}%", mode, self.space.mix * 100.0)
             }
         }

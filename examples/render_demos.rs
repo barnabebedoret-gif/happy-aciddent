@@ -1,18 +1,20 @@
 //! Rend un fichier de démo : le lead sec, puis plusieurs accidents.
 //! cargo run --release --example render_demos
 
-use happy_accident::engine::{demo::render_lead, Engine, Macros, Transport, KINDS};
+use happy_accident::engine::{demo::{render_lead, render_sustain_lead}, Engine, Macros, Transport, KINDS};
 
 fn main() {
     let sr = 44100.0;
     let tempo = 128.0;
     let bars = 4;
-    let (l, r) = render_lead(sr, tempo, bars);
+    let sustain = std::env::args().any(|a| a == "sustain");
+    let (l, r) = if sustain { render_sustain_lead(sr, tempo, bars) } else { render_lead(sr, tempo, bars) };
+    let out = if sustain { "demos/happy_accident_demo_sustain.wav" } else { "demos/happy_accident_demo.wav" };
     let gap = (sr * 0.6) as usize;
 
     std::fs::create_dir_all("demos").unwrap();
     let spec = hound::WavSpec { channels: 2, sample_rate: sr as u32, bits_per_sample: 16, sample_format: hound::SampleFormat::Int };
-    let mut w = hound::WavWriter::create("demos/happy_accident_demo.wav", spec).unwrap();
+    let mut w = hound::WavWriter::create(out, spec).unwrap();
     let mut write = |a: &[f32], b: &[f32]| {
         for (x, y) in a.iter().zip(b) {
             w.write_sample((x * 32767.0) as i16).unwrap();
@@ -23,7 +25,7 @@ fn main() {
         }
     };
 
-    println!("0. Lead sec (La mineur, 128 BPM)");
+    println!("0. Lead sec (La mineur, 128 BPM{})", if sustain { ", sustain" } else { "" });
     write(&l, &r);
 
     let mut e = Engine::new(sr, 0xB27B_2026);
@@ -33,6 +35,15 @@ fn main() {
         let m = Macros { balance: *balance, chaos: *chaos, movement: 0.5, ..Macros::default() };
         // On tire jusqu'à ~5 fois pour éviter les accidents trop sages dans la démo
         e.accident(&m);
+        // Démo : on montre chaque type de mouvement du filtre
+        let want = [2u8, 1, 0, 1, 2, 1][k];
+        for _ in 0..40 {
+            let p = e.patch();
+            if p.enabled[4] && p.filter.motion == want {
+                break;
+            }
+            e.accident(&m);
+        }
         let p = *e.patch();
         let chain: Vec<String> = p
             .order

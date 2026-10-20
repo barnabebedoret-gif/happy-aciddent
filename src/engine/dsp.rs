@@ -59,7 +59,7 @@ impl OnePole {
     }
 }
 
-/// Filtre à variable d'état (TPT, Cytomic) - sortie passe-bande et passe-bas.
+/// Filtre à variable d'état (TPT, Cytomic) : passe-bas, passe-bande et passe-haut.
 #[derive(Clone, Copy, Default)]
 pub struct Svf {
     ic1: f32,
@@ -67,11 +67,15 @@ pub struct Svf {
 }
 
 impl Svf {
-    /// Retourne (passe-bas, passe-bande)
+    /// Coefficients (g, k) à calculer une fois par échantillon et à partager.
     #[inline]
-    pub fn process(&mut self, x: f32, cutoff: f32, q: f32, sr: f32) -> (f32, f32) {
-        let g = (PI * cutoff.clamp(20.0, sr * 0.45) / sr).tan();
-        let k = 1.0 / q.max(0.1);
+    pub fn coefs(cutoff: f32, q: f32, sr: f32) -> (f32, f32) {
+        ((PI * cutoff.clamp(20.0, sr * 0.45) / sr).tan(), 1.0 / q.max(0.1))
+    }
+
+    /// Retourne (passe-bas, passe-bande, passe-haut)
+    #[inline]
+    pub fn tick(&mut self, x: f32, g: f32, k: f32) -> (f32, f32, f32) {
         let a1 = 1.0 / (1.0 + g * (g + k));
         let a2 = g * a1;
         let a3 = g * a2;
@@ -80,8 +84,9 @@ impl Svf {
         let v2 = self.ic2 + a2 * self.ic1 + a3 * v3;
         self.ic1 = 2.0 * v1 - self.ic1;
         self.ic2 = 2.0 * v2 - self.ic2;
-        (v2, v1)
+        (v2, v1, x - k * v1 - v2)
     }
+
     pub fn reset(&mut self) {
         *self = Svf::default();
     }

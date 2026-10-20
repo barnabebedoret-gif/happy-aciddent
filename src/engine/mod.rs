@@ -93,7 +93,7 @@ pub struct Engine {
     stutter: Stutter,
     pitch: Pitch,
     drive: Drive,
-    reso: Reso,
+    filter: Filter,
     space: Space,
 
     pw_dry: f32,
@@ -119,7 +119,7 @@ impl Engine {
             stutter: Stutter::new(sr),
             pitch: Pitch::new(sr),
             drive: Drive::default(),
-            reso: Reso::new(sr),
+            filter: Filter::default(),
             space: Space::new(sr),
             pw_dry: 0.0,
             pw_wet: 0.0,
@@ -200,7 +200,7 @@ impl Engine {
         self.stutter.reset();
         self.pitch.reset();
         self.drive.reset();
-        self.reso.reset();
+        self.filter.reset();
         self.space.reset();
     }
 
@@ -246,13 +246,15 @@ impl Engine {
                 if !p.enabled[mi] {
                     continue;
                 }
-                let mv = lfo_value(&p.lfo[mi], self.beat, c.seed, mi as u64) * p.lfo[mi].depth * m.movement;
+                // Le filtre bouge toujours un peu, même Movement à 0
+                let amt = if KINDS[mi] == ModuleKind::Filter { 0.25 + 0.75 * m.movement } else { m.movement };
+                let mv = lfo_value(&p.lfo[mi], self.beat, c.seed, mi as u64) * p.lfo[mi].depth * amt;
                 (x, y) = match KINDS[mi] {
                     ModuleKind::Gate => self.gate.process(x, y, &p.gate, &c, mv),
                     ModuleKind::Stutter => self.stutter.process(x, y, &p.stutter, &c),
                     ModuleKind::Pitch => self.pitch.process(x, y, &p.pitch, &c, mv),
                     ModuleKind::Drive => self.drive.process(x, y, &p.drive, &c, mv),
-                    ModuleKind::Reso => self.reso.process(x, y, &p.reso, &c, mv),
+                    ModuleKind::Filter => self.filter.process(x, y, &p.filter, &c, mv),
                     ModuleKind::Space => self.space.process(x, y, &p.space, &c, mv),
                 };
             }

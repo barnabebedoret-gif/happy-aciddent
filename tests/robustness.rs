@@ -78,7 +78,7 @@ fn locks_et_historique() {
     for _ in 0..20 {
         e.accident(&m);
         assert_eq!(e.patch().drive, first.drive, "Drive verrouillé a changé");
-        assert_eq!(e.patch().reso, first.reso, "Reso verrouillé a changé");
+        assert_eq!(e.patch().filter, first.filter, "Filter verrouillé a changé");
         assert_eq!(e.patch().enabled[3], first.enabled[3]);
     }
     let last = *e.patch();

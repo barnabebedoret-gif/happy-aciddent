@@ -138,7 +138,7 @@ impl Default for HaParams {
             lock1: BoolParam::new("Lock Stutter", false),
             lock2: BoolParam::new("Lock Pitch", false),
             lock3: BoolParam::new("Lock Drive", false),
-            lock4: BoolParam::new("Lock Reso", false),
+            lock4: BoolParam::new("Lock Filter", false),
             lock5: BoolParam::new("Lock Space", false),
             accident: BoolParam::new("ACCIDENT", false),
             mutate: BoolParam::new("MUTATE", false),
