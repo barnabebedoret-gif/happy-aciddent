@@ -12,6 +12,13 @@ members = ["xtask"]
 [lib]
 crate-type = ["cdylib", "lib"]
 
+[features]
+standalone = ["nih_plug/standalone"]
+
+[[bin]]
+name = "standalone"
+required-features = ["standalone"]
+
 [dependencies]
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
 nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }

@@ -71,27 +71,32 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                 ui.add_space(10.0);
 
                 // ---------------- Macros
-                egui::Grid::new("macros").num_columns(4).spacing(Vec2::new(14.0, 6.0)).show(ui, |ui| {
-                    for (label, p) in [("CHAOS", &params.chaos), ("TIMBRE ↔ PATTERN", &params.balance)] {
-                        ui.label(RichText::new(label).size(12.0).color(DIM));
-                        ui.add(widgets::ParamSlider::for_param(p, setter).with_width(200.0));
-                    }
+                let label = |ui: &mut egui::Ui, t: &str| {
+                    ui.label(RichText::new(t).size(12.0).color(DIM));
+                };
+                egui::Grid::new("macros").num_columns(4).min_col_width(60.0).spacing(Vec2::new(12.0, 8.0)).show(ui, |ui| {
+                    label(ui, "CHAOS");
+                    ui.add(widgets::ParamSlider::for_param(&params.chaos, setter).with_width(160.0));
+                    label(ui, "TIMBRE / PATTERN");
+                    ui.add(widgets::ParamSlider::for_param(&params.balance, setter).with_width(160.0));
                     ui.end_row();
-                    for (label, p) in [("MOVEMENT", &params.movement), ("MIX", &params.mix)] {
-                        ui.label(RichText::new(label).size(12.0).color(DIM));
-                        ui.add(widgets::ParamSlider::for_param(p, setter).with_width(200.0));
-                    }
+                    label(ui, "MOVEMENT");
+                    ui.add(widgets::ParamSlider::for_param(&params.movement, setter).with_width(160.0));
+                    label(ui, "SPEED");
+                    ui.add(widgets::ParamSlider::for_param(&params.speed, setter).with_width(160.0));
                     ui.end_row();
-                    ui.label(RichText::new("TONALITÉ").size(12.0).color(DIM));
+                    label(ui, "TONALITÉ");
                     ui.horizontal(|ui| {
-                        ui.add(widgets::ParamSlider::for_param(&params.key, setter).with_width(70.0));
-                        ui.add(widgets::ParamSlider::for_param(&params.scale, setter).with_width(122.0));
+                        ui.add(widgets::ParamSlider::for_param(&params.key, setter).with_width(50.0));
+                        ui.add(widgets::ParamSlider::for_param(&params.scale, setter).with_width(60.0));
                     });
-                    ui.label(RichText::new("OUTPUT").size(12.0).color(DIM));
-                    ui.add(widgets::ParamSlider::for_param(&params.output, setter).with_width(200.0));
+                    label(ui, "MIX");
+                    ui.add(widgets::ParamSlider::for_param(&params.mix, setter).with_width(160.0));
                     ui.end_row();
-                    ui.label(RichText::new("SPEED").size(12.0).color(DIM));
-                    ui.add(widgets::ParamSlider::for_param(&params.speed, setter).with_width(200.0));
+                    ui.label("");
+                    ui.label("");
+                    label(ui, "OUTPUT");
+                    ui.add(widgets::ParamSlider::for_param(&params.output, setter).with_width(160.0));
                     ui.end_row();
                 });
                 ui.add_space(12.0);
@@ -110,43 +115,51 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                     }
                     pos
                 };
-                egui::Grid::new("modules").num_columns(3).spacing(Vec2::new(10.0, 10.0)).show(ui, |ui| {
-                    for (i, kind) in KINDS.iter().enumerate() {
-                        let on = patch.enabled[i];
-                        let locked = locks[i].value();
-                        egui::Frame::new()
-                            .fill(if on { PANEL_ON } else { PANEL })
-                            .stroke(egui::Stroke::new(1.0_f32, if locked { PINK } else if on { ACID.gamma_multiply(0.5) } else { PANEL }))
-                            .corner_radius(8)
-                            .inner_margin(egui::Margin::same(10))
-                            .show(ui, |ui| {
-                                ui.set_width(204.0);
-                                ui.set_height(58.0);
-                                ui.horizontal(|ui| {
-                                    let name = RichText::new(kind.name()).size(15.0).strong().color(if on { ACID } else { DIM });
-                                    ui.label(name);
-                                    if on {
-                                        ui.label(RichText::new(format!("#{}", positions[i])).size(11.0).color(DIM));
-                                    }
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        let mut v = locked;
-                                        let txt = if locked { "🔒 LOCK" } else { "🔓" };
-                                        if ui.toggle_value(&mut v, txt).on_hover_text("Garder ce module tel quel").changed() {
-                                            setter.begin_set_parameter(locks[i]);
-                                            setter.set_parameter(locks[i], v);
-                                            setter.end_set_parameter(locks[i]);
-                                        }
+                let gap = 10.0;
+                let tile_w = ((ui.available_width() - 2.0 * gap) / 3.0).floor();
+                for row in 0..2 {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = gap;
+                        for col in 0..3 {
+                            let i = row * 3 + col;
+                            let kind = KINDS[i];
+                            let on = patch.enabled[i];
+                            let locked = locks[i].value();
+                            ui.allocate_ui_with_layout(Vec2::new(tile_w, 76.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+                                egui::Frame::new()
+                                    .fill(if on { PANEL_ON } else { PANEL })
+                                    .stroke(egui::Stroke::new(1.0_f32, if locked { PINK } else if on { ACID.gamma_multiply(0.5) } else { PANEL }))
+                                    .corner_radius(8)
+                                    .inner_margin(egui::Margin::same(10))
+                                    .show(ui, |ui| {
+                                        let inner = tile_w - 22.0;
+                                        ui.set_min_size(Vec2::new(inner, 52.0));
+                                        ui.set_max_width(inner);
+                                        ui.horizontal(|ui| {
+                                            ui.label(RichText::new(kind.name()).size(15.0).strong().color(if on { ACID } else { DIM }));
+                                            if on {
+                                                ui.label(RichText::new(format!("#{}", positions[i])).size(11.0).color(DIM));
+                                            }
+                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                let mut v = locked;
+                                                let txt = RichText::new("LOCK").size(11.0).color(if locked { PINK } else { DIM });
+                                                if ui.toggle_value(&mut v, txt).on_hover_text("Garder ce module tel quel").changed() {
+                                                    setter.begin_set_parameter(locks[i]);
+                                                    setter.set_parameter(locks[i], v);
+                                                    setter.end_set_parameter(locks[i]);
+                                                }
+                                            });
+                                        });
+                                        ui.add_space(2.0);
+                                        let desc = if on { patch.describe(kind) } else { "off".to_string() };
+                                        ui.label(RichText::new(desc).size(12.0).color(if on { TEXT } else { DIM }));
                                     });
-                                });
-                                let desc = if on { patch.describe(*kind) } else { "—".to_string() };
-                                ui.label(RichText::new(desc).size(12.0).color(if on { TEXT } else { DIM }));
                             });
-                        if i % 3 == 2 {
-                            ui.end_row();
                         }
-                    }
-                });
-                ui.add_space(8.0);
+                    });
+                    ui.add_space(gap - ui.spacing().item_spacing.y);
+                }
+                ui.add_space(4.0);
 
                 // ---------------- Chaîne
                 let chain: Vec<&str> = patch
@@ -156,7 +169,7 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                     .filter(|&m| patch.enabled[m])
                     .map(|m| KINDS[m].name())
                     .collect();
-                ui.label(RichText::new(format!("CHAÎNE :  IN → {} → OUT", chain.join(" → "))).size(12.0).color(DIM));
+                ui.label(RichText::new(format!("CHAÎNE :  IN  >  {}  >  OUT", chain.join("  >  "))).size(12.0).color(DIM));
             });
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         },

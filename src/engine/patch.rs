@@ -443,7 +443,7 @@ impl Patch {
                 let div = DIV_NAMES[f.division as usize % 4];
                 let motion = match f.motion {
                     1 => format!("Steps {}", div),
-                    2 => format!("Escalier {} mes. {}", [1, 2, 4][f.sweep_bars as usize % 3], ["↑", "↓", "↕"][f.sweep_dir as usize % 3]),
+                    2 => format!("Escalier {} mes. {}", [1, 2, 4][f.sweep_bars as usize % 3], ["montée", "descente", "aller-retour"][f.sweep_dir as usize % 3]),
                     _ => format!("Gate {} · {}/16", div, f.pattern.count_ones()),
                 };
                 format!("{}{} · {}", mode, slope, motion)
