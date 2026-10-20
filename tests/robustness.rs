@@ -110,3 +110,25 @@ fn historique_se_sauvegarde() {
     e2.load_history(back);
     assert_eq!(e2.patch(), e.patch());
 }
+
+#[test]
+fn allumer_eteindre_un_module() {
+    let mut e = Engine::new(48000.0, 11);
+    let m = Macros::default();
+    e.accident(&m);
+    let before = *e.patch();
+    let len = e.history().len;
+    e.toggle_module(0);
+    assert_eq!(e.patch().enabled[0], !before.enabled[0]);
+    assert_eq!(e.history().len, len, "le on/off ne doit pas créer d'accident");
+    assert_eq!(e.history().current().enabled[0], !before.enabled[0]);
+    // Éteint + verrouillé : ne revient pas aux accidents suivants
+    if e.patch().enabled[0] {
+        e.toggle_module(0);
+    }
+    let locked = Macros { chaos: 1.0, locks: [true, false, false, false, false, false], ..Macros::default() };
+    for _ in 0..30 {
+        e.accident(&locked);
+        assert!(!e.patch().enabled[0]);
+    }
+}

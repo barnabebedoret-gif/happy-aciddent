@@ -15,17 +15,17 @@ use engine::{Engine, History, Macros, Scale, Transport, NUM_MODULES};
 
 #[derive(Enum, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum ScaleParam {
-    #[name = "Mineur"]
+    #[name = "Minor"]
     Minor,
-    #[name = "Majeur"]
+    #[name = "Major"]
     Major,
-    #[name = "Dorien"]
+    #[name = "Dorian"]
     Dorian,
-    #[name = "Phrygien"]
+    #[name = "Phrygian"]
     Phrygian,
-    #[name = "Mineur harm."]
+    #[name = "Harm. minor"]
     HarmonicMinor,
-    #[name = "Penta mineure"]
+    #[name = "Minor penta"]
     PentaMinor,
 }
 
@@ -76,6 +76,8 @@ pub struct Shared {
     pub mutate: AtomicU32,
     pub prev: AtomicU32,
     pub next: AtomicU32,
+    /// Un compteur par module : chaque clic allume / éteint le module
+    pub toggle: [AtomicU32; NUM_MODULES],
     /// Copie de l'état pour l'affichage
     pub display: Mutex<History>,
 }
@@ -147,7 +149,7 @@ impl Default for HaParams {
                     } else if v > 0.66 {
                         format!("Pattern {:.0}%", v * 100.0)
                     } else {
-                        "Les deux".to_string()
+                        "Both".to_string()
                     }
                 })),
             movement: percent("Movement", 0.4),
@@ -161,9 +163,9 @@ impl Default for HaParams {
             .with_unit(" dB")
             .with_value_to_string(formatters::v2s_f32_gain_to_db(1))
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
-            key: IntParam::new("Tonalité", 9, IntRange::Linear { min: 0, max: 11 })
+            key: IntParam::new("Key", 9, IntRange::Linear { min: 0, max: 11 })
                 .with_value_to_string(Arc::new(|v| NOTE_NAMES[v.clamp(0, 11) as usize].to_string())),
-            scale: EnumParam::new("Gamme", ScaleParam::Minor),
+            scale: EnumParam::new("Scale", ScaleParam::Minor),
             speed: EnumParam::new("Speed", SpeedParam::Normal),
             lock0: BoolParam::new("Lock Gate", false),
             lock1: BoolParam::new("Lock Stutter", false),
@@ -203,6 +205,7 @@ pub struct HappyAccident {
     shared: Arc<Shared>,
     engine: Option<Engine>,
     seen: [u32; 4],
+    seen_toggle: [u32; NUM_MODULES],
     last_accident_param: bool,
     last_mutate_param: bool,
     dirty: bool,
@@ -217,10 +220,12 @@ impl Default for HappyAccident {
                 mutate: AtomicU32::new(0),
                 prev: AtomicU32::new(0),
                 next: AtomicU32::new(0),
+                toggle: [const { AtomicU32::new(0) }; NUM_MODULES],
                 display: Mutex::new(History::default()),
             }),
             engine: None,
             seen: [0; 4],
+            seen_toggle: [0; NUM_MODULES],
             last_accident_param: false,
             last_mutate_param: false,
             dirty: true,
@@ -265,6 +270,9 @@ impl Plugin for HappyAccident {
         }
         self.engine = Some(engine);
         // On ignore les clics faits avant l'initialisation
+        for i in 0..NUM_MODULES {
+            self.seen_toggle[i] = self.shared.toggle[i].load(Ordering::Relaxed);
+        }
         self.seen = [
             self.shared.accident.load(Ordering::Relaxed),
             self.shared.mutate.load(Ordering::Relaxed),
@@ -282,6 +290,14 @@ impl Plugin for HappyAccident {
         let macros = self.params.macros();
 
         // Commandes venant de l'interface
+        for i in 0..NUM_MODULES {
+            let v = self.shared.toggle[i].load(Ordering::Relaxed);
+            if v != self.seen_toggle[i] {
+                self.seen_toggle[i] = v;
+                engine.toggle_module(i);
+                self.dirty = true;
+            }
+        }
         let counters = [&self.shared.accident, &self.shared.mutate, &self.shared.prev, &self.shared.next];
         for (k, c) in counters.iter().enumerate() {
             let v = c.load(Ordering::Relaxed);
@@ -342,7 +358,7 @@ impl Plugin for HappyAccident {
 
 impl ClapPlugin for HappyAccident {
     const CLAP_ID: &'static str = "com.brnb.happy-accident-generator";
-    const CLAP_DESCRIPTION: Option<&'static str> = Some("Multi-FX aléatoire pour générer des idées de leads");
+    const CLAP_DESCRIPTION: Option<&'static str> = Some("Random multi-FX to turn leads into new ideas");
     const CLAP_MANUAL_URL: Option<&'static str> = None;
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
     const CLAP_FEATURES: &'static [ClapFeature] = &[ClapFeature::AudioEffect, ClapFeature::Stereo, ClapFeature::Distortion, ClapFeature::Glitch];

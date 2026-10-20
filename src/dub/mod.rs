@@ -257,7 +257,7 @@ impl Plugin for HappyAccidentDub {
 
 impl ClapPlugin for HappyAccidentDub {
     const CLAP_ID: &'static str = "com.brnb.happy-accident-dub";
-    const CLAP_DESCRIPTION: Option<&'static str> = Some("Delay dub filtré aléatoire");
+    const CLAP_DESCRIPTION: Option<&'static str> = Some("Random filtered dub delay");
     const CLAP_MANUAL_URL: Option<&'static str> = None;
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
     const CLAP_FEATURES: &'static [ClapFeature] = &[ClapFeature::AudioEffect, ClapFeature::Stereo, ClapFeature::Delay, ClapFeature::Filter];

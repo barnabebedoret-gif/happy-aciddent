@@ -14,6 +14,12 @@ const PANEL_ON: Color32 = Color32::from_rgb(18, 40, 38);
 const TEAL: Color32 = Color32::from_rgb(64, 230, 200);
 const ORANGE: Color32 = Color32::from_rgb(255, 120, 40);
 const DIM: Color32 = Color32::from_rgb(120, 124, 128);
+const GROUP_TIPS: [&str; 4] = [
+    "TIME: delay times (left / right) and ping-pong. LOCK keeps them on the next ACCIDENT.",
+    "SEND: which steps go into the delay. Everything, or only some hits (dub throws). LOCK keeps it.",
+    "FILTER: filter inside the feedback loop, so each repeat gets filtered again. Fixed, different on each echo, or stepping over 2 bars. LOCK keeps it.",
+    "COLOR: saturation and tape wobble inside the loop. LOCK keeps it.",
+];
 const TEXT: Color32 = Color32::from_rgb(232, 232, 236);
 
 pub fn create(params: Arc<DubParams>, shared: Arc<DubShared>) -> Option<Box<dyn Editor>> {
@@ -54,11 +60,11 @@ pub fn create(params: Arc<DubParams>, shared: Arc<DubShared>) -> Option<Box<dyn 
 
                 ui.horizontal(|ui| {
                     let acc = egui::Button::new(RichText::new("ACCIDENT").size(28.0).strong().color(BG)).fill(TEAL).min_size(Vec2::new(330.0, 62.0));
-                    if ui.add(acc).on_hover_text("Nouveau delay (radicalité = Chaos)").clicked() {
+                    if ui.add(acc).on_hover_text("Roll a new delay: time, sends, filter and color. CHAOS sets how wild it gets. Locked groups are kept.").clicked() {
                         shared.accident.fetch_add(1, Ordering::Relaxed);
                     }
                     let mt = egui::Button::new(RichText::new("MUTATE").size(20.0).strong().color(TEXT)).fill(PANEL_ON).min_size(Vec2::new(170.0, 62.0));
-                    if ui.add(mt).on_hover_text("Petite variation").clicked() {
+                    if ui.add(mt).on_hover_text("Small variation of the current delay.").clicked() {
                         shared.mutate.fetch_add(1, Ordering::Relaxed);
                     }
                     // THROW : maintenir enfoncé
@@ -68,7 +74,7 @@ pub fn create(params: Arc<DubParams>, shared: Arc<DubShared>) -> Option<Box<dyn 
                         .stroke(egui::Stroke::new(1.5_f32, ORANGE))
                         .min_size(Vec2::new(170.0, 62.0))
                         .sense(egui::Sense::click_and_drag());
-                    let r = ui.add(th).on_hover_text("Maintenir : feedback à fond (spirale dub)");
+                    let r = ui.add(th).on_hover_text("Hold to push the feedback past 100% for a dub spiral. The loop saturation keeps it under control. Map it to a pad!");
                     let down = r.is_pointer_button_down_on();
                     if down != throwing {
                         setter.begin_set_parameter(&params.throw);
@@ -78,24 +84,24 @@ pub fn create(params: Arc<DubParams>, shared: Arc<DubShared>) -> Option<Box<dyn 
                 });
                 ui.add_space(10.0);
 
-                let label = |ui: &mut egui::Ui, t: &str| {
-                    ui.label(RichText::new(t).size(12.0).color(DIM));
+                let label = |ui: &mut egui::Ui, t: &str, tip: &str| {
+                    ui.label(RichText::new(t).size(12.0).color(DIM)).on_hover_text(tip);
                 };
                 egui::Grid::new("dub_macros").num_columns(4).min_col_width(60.0).spacing(Vec2::new(12.0, 8.0)).show(ui, |ui| {
-                    label(ui, "CHAOS");
-                    ui.add(widgets::ParamSlider::for_param(&params.chaos, setter).with_width(160.0));
-                    label(ui, "FEEDBACK");
-                    ui.add(widgets::ParamSlider::for_param(&params.feedback, setter).with_width(160.0));
+                    label(ui, "CHAOS", "How radical ACCIDENT and MUTATE are. Low = small changes. High = anything goes.");
+                    ui.add(widgets::ParamSlider::for_param(&params.chaos, setter).with_width(160.0)).on_hover_text("How radical ACCIDENT and MUTATE are. Low = small changes. High = anything goes.");
+                    label(ui, "FEEDBACK", "How long the echoes last. Above ~85% they ring for a long time.");
+                    ui.add(widgets::ParamSlider::for_param(&params.feedback, setter).with_width(160.0)).on_hover_text("How long the echoes last. Above ~85% they ring for a long time.");
                     ui.end_row();
-                    label(ui, "MOVEMENT");
-                    ui.add(widgets::ParamSlider::for_param(&params.movement, setter).with_width(160.0));
-                    label(ui, "ECHOES");
-                    ui.add(widgets::ParamSlider::for_param(&params.mix, setter).with_width(160.0));
+                    label(ui, "MOVEMENT", "How much the filter jumps from echo to echo, and how much the tape wobbles.");
+                    ui.add(widgets::ParamSlider::for_param(&params.movement, setter).with_width(160.0)).on_hover_text("How much the filter jumps from echo to echo, and how much the tape wobbles.");
+                    label(ui, "ECHOES", "Level of the echoes. The dry sound always passes untouched.");
+                    ui.add(widgets::ParamSlider::for_param(&params.mix, setter).with_width(160.0)).on_hover_text("Level of the echoes. The dry sound always passes untouched.");
                     ui.end_row();
                     ui.label("");
                     ui.label("");
-                    label(ui, "OUTPUT");
-                    ui.add(widgets::ParamSlider::for_param(&params.output, setter).with_width(160.0));
+                    label(ui, "OUTPUT", "Output level, after the safety limiter.");
+                    ui.add(widgets::ParamSlider::for_param(&params.output, setter).with_width(160.0)).on_hover_text("Output level, after the safety limiter.");
                     ui.end_row();
                 });
                 ui.add_space(12.0);
@@ -120,11 +126,11 @@ pub fn create(params: Arc<DubParams>, shared: Arc<DubShared>) -> Option<Box<dyn 
                                         ui.set_min_size(Vec2::new(inner, 44.0));
                                         ui.set_max_width(inner);
                                         ui.horizontal(|ui| {
-                                            ui.label(RichText::new(DUB_GROUPS[i]).size(15.0).strong().color(TEAL));
+                                            ui.label(RichText::new(DUB_GROUPS[i]).size(15.0).strong().color(TEAL)).on_hover_text(GROUP_TIPS[i]);
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                 let mut v = locked;
                                                 let txt = RichText::new("LOCK").size(11.0).color(if locked { ORANGE } else { DIM });
-                                                if ui.toggle_value(&mut v, txt).on_hover_text("Garder ce réglage").changed() {
+                                                if ui.toggle_value(&mut v, txt).on_hover_text(GROUP_TIPS[i]).changed() {
                                                     setter.begin_set_parameter(locks[i]);
                                                     setter.set_parameter(locks[i], v);
                                                     setter.end_set_parameter(locks[i]);

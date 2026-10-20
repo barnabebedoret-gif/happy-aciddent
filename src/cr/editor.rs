@@ -63,14 +63,14 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                                 setter.end_set_parameter(&params.group);
                             }
                         }
-                        ui.label(RichText::new("GROUPE").size(12.0).color(DIM));
+                        ui.label(RichText::new("GROUP").size(12.0).color(DIM)).on_hover_text("Instances in the same group share one pattern. Use another group for an independent call & response in the same set.");
                     });
                 });
                 ui.add_space(8.0);
 
                 // ---------------- Lettre de cette piste
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("CETTE PISTE").size(12.0).color(DIM));
+                    ui.label(RichText::new("THIS TRACK").size(12.0).color(DIM)).on_hover_text("The letter of this track. It only plays when its letter has the turn.");
                     for i in 0..4u8 {
                         let active = i < s.voices;
                         let sel = letter == i;
@@ -86,7 +86,7 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                         }
                     }
                     if letter >= s.voices {
-                        ui.label(RichText::new("lettre hors des voix actives : piste muette").size(11.0).color(LETTER_COLORS[1]));
+                        ui.label(RichText::new("letter outside the active voices: this track stays muted").size(11.0).color(LETTER_COLORS[1]));
                     }
                 });
                 ui.add_space(8.0);
@@ -94,18 +94,18 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                 // ---------------- Accident
                 ui.horizontal(|ui| {
                     let acc = egui::Button::new(RichText::new("ACCIDENT").size(24.0).strong().color(BG)).fill(my_color).min_size(Vec2::new(300.0, 52.0));
-                    if ui.add(acc).on_hover_text("Nouveau pattern pour tout le groupe").clicked() {
+                    if ui.add(acc).on_hover_text("New pattern for the whole group. With a high CHAOS, the turn length, steps and mode can change too.").clicked() {
                         *seed_state = crate::engine::rng::mix(
                             *seed_state ^ std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1),
                         );
                         params.commit(s.accident((*seed_state >> 40) as u32, params.chaos.value()));
                     }
                     let mt = egui::Button::new(RichText::new("MUTATE").size(18.0).strong().color(TEXT)).fill(PANEL).min_size(Vec2::new(150.0, 52.0));
-                    if ui.add(mt).on_hover_text("Change une case").clicked() {
+                    if ui.add(mt).on_hover_text("Changes one step of the pattern.").clicked() {
                         params.commit(s.mutate());
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add_enabled(hpos + 1 < hlen, egui::Button::new("▶")).clicked() {
+                        if ui.add_enabled(hpos + 1 < hlen, egui::Button::new("▶")).on_hover_text("Next pattern in the history").clicked() {
                             if let Ok(mut h) = params.history.write() {
                                 if h.forward() {
                                     if let Some(n) = CrSettings::unpack(h.current()) {
@@ -115,7 +115,7 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                             }
                         }
                         ui.label(RichText::new(format!("{}/{}", hpos + 1, hlen)).color(TEXT));
-                        if ui.add_enabled(hpos > 0, egui::Button::new("◀")).clicked() {
+                        if ui.add_enabled(hpos > 0, egui::Button::new("◀")).on_hover_text("Previous pattern. Saved with your Live set.").clicked() {
                             if let Ok(mut h) = params.history.write() {
                                 if h.back() {
                                     if let Some(n) = CrSettings::unpack(h.current()) {
@@ -131,7 +131,8 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                 // ---------------- Timeline du pattern
                 let avail = ui.available_width();
                 let cell = ((avail - 4.0 * (len as f32 - 1.0)) / len as f32).floor().min(80.0);
-                let (rect, _) = ui.allocate_exact_size(Vec2::new(avail, 54.0), egui::Sense::hover());
+                let (rect, resp) = ui.allocate_exact_size(Vec2::new(avail, 54.0), egui::Sense::hover());
+                resp.on_hover_text("The pattern. The outlined step is playing now. Bright steps = this track.");
                 let painter = ui.painter_at(rect);
                 for i in 0..len {
                     let x = rect.left() + i as f32 * (cell + 4.0);
@@ -154,7 +155,7 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                 // ---------------- Réglages du groupe
                 let mut next = s;
                 egui::Grid::new("cr_settings").num_columns(2).spacing(Vec2::new(12.0, 8.0)).show(ui, |ui| {
-                    ui.label(RichText::new("VOIX").size(12.0).color(DIM));
+                    ui.label(RichText::new("VOICES").size(12.0).color(DIM)).on_hover_text("How many tracks take part: A/B, A/B/C or A/B/C/D.");
                     ui.horizontal(|ui| {
                         for v in 2..=4u8 {
                             if chip(ui, &v.to_string(), s.voices == v, TEXT, 34.0) {
@@ -163,7 +164,7 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                         }
                     });
                     ui.end_row();
-                    ui.label(RichText::new("MODE").size(12.0).color(DIM));
+                    ui.label(RichText::new("MODE").size(12.0).color(DIM)).on_hover_text("Alternate: strict rotation. Random: random order with few repeats. Repeats: a track often keeps the turn for several steps.");
                     ui.horizontal(|ui| {
                         for (m, name) in MODE_NAMES.iter().enumerate() {
                             if chip(ui, name, s.mode as usize == m, TEXT, 90.0) {
@@ -172,7 +173,7 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                         }
                     });
                     ui.end_row();
-                    ui.label(RichText::new("TOUR").size(12.0).color(DIM));
+                    ui.label(RichText::new("TURN").size(12.0).color(DIM)).on_hover_text("How long each turn lasts, from 1/16 to 2 bars.");
                     ui.horizontal(|ui| {
                         for (t, name) in TURN_NAMES.iter().enumerate() {
                             if chip(ui, name, s.turn_idx as usize == t, TEXT, 56.0) {
@@ -181,7 +182,7 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                         }
                     });
                     ui.end_row();
-                    ui.label(RichText::new("CASES").size(12.0).color(DIM));
+                    ui.label(RichText::new("STEPS").size(12.0).color(DIM)).on_hover_text("Pattern length (number of turns) before it loops.");
                     ui.horizontal(|ui| {
                         for (k, n) in LENS.iter().enumerate() {
                             if chip(ui, &n.to_string(), s.len_idx as usize == k, TEXT, 34.0) {
@@ -189,7 +190,7 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                             }
                         }
                         ui.add_space(20.0);
-                        ui.label(RichText::new("SILENCES").size(12.0).color(DIM));
+                        ui.label(RichText::new("SILENCES").size(12.0).color(DIM)).on_hover_text("Adds steps where nobody plays. Turn it up for more space and tension.");
                         let mut sil = s.silence as f32;
                         if ui.add(egui::Slider::new(&mut sil, 0.0..=15.0).show_value(false)).changed() {
                             next.silence = sil.round() as u8;
@@ -203,12 +204,12 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                 ui.add_space(8.0);
 
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("CHAOS").size(12.0).color(DIM));
-                    ui.add(widgets::ParamSlider::for_param(&params.chaos, setter).with_width(110.0));
-                    ui.label(RichText::new("DEPTH").size(12.0).color(DIM));
-                    ui.add(widgets::ParamSlider::for_param(&params.depth, setter).with_width(110.0));
-                    ui.label(RichText::new("FADE").size(12.0).color(DIM));
-                    ui.add(widgets::ParamSlider::for_param(&params.fade, setter).with_width(110.0));
+                    ui.label(RichText::new("CHAOS").size(12.0).color(DIM)).on_hover_text("How much ACCIDENT changes. Low = only a new order. High = turn length, steps and mode too.");
+                    ui.add(widgets::ParamSlider::for_param(&params.chaos, setter).with_width(110.0)).on_hover_text("How much ACCIDENT changes. Low = only a new order. High = turn length, steps and mode too.");
+                    ui.label(RichText::new("DEPTH").size(12.0).color(DIM)).on_hover_text("100% = the other tracks are fully muted. Lower = they are only ducked.");
+                    ui.add(widgets::ParamSlider::for_param(&params.depth, setter).with_width(110.0)).on_hover_text("100% = the other tracks are fully muted. Lower = they are only ducked.");
+                    ui.label(RichText::new("FADE").size(12.0).color(DIM)).on_hover_text("Fade time between turns. Short = tight cuts. Long = smooth handovers.");
+                    ui.add(widgets::ParamSlider::for_param(&params.fade, setter).with_width(110.0)).on_hover_text("Fade time between turns. Short = tight cuts. Long = smooth handovers.");
                 });
             });
             ctx.request_repaint_after(std::time::Duration::from_millis(40));

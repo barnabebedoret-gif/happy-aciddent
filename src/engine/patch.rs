@@ -179,8 +179,8 @@ impl Default for Patch {
             enabled: [false, false, false, false, true, true],
             order: [0, 1, 2, 3, 4, 5],
             gate: GateP { pattern: 0b1011_0110_1101_1011, division: 1, depth: 0.8, smooth: 0.3 },
-            stutter: StutterP { events: [0; 16], division: 1, repeats: 2, decay: 0.9 },
-            pitch: PitchP { steps: [0; 8], patterned: false, division: 0, blend: 0.5, grain: 0.5 },
+            stutter: StutterP { events: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0], division: 1, repeats: 2, decay: 0.9 },
+            pitch: PitchP { steps: [-7, 0, 0, 0, 0, 0, 0, 0], patterned: false, division: 0, blend: 0.5, grain: 0.5 },
             drive: DriveP { mode: 0, amount: 0.3, tone: 0.7 },
             filter: FilterP {
                 mode: 0,
@@ -427,9 +427,9 @@ impl Patch {
             }
             ModuleKind::Pitch => {
                 if self.pitch.patterned {
-                    format!("Mélodie 8 pas · {}", DIV_NAMES[self.pitch.division as usize % 4])
+                    format!("8-step melody · {}", DIV_NAMES[self.pitch.division as usize % 4])
                 } else {
-                    format!("{:+} degrés", self.pitch.steps[0])
+                    format!("{:+} degrees", self.pitch.steps[0])
                 }
             }
             ModuleKind::Drive => {
@@ -443,13 +443,13 @@ impl Patch {
                 let div = DIV_NAMES[f.division as usize % 4];
                 let motion = match f.motion {
                     1 => format!("Steps {}", div),
-                    2 => format!("Escalier {} mes. {}", [1, 2, 4][f.sweep_bars as usize % 3], ["montée", "descente", "aller-retour"][f.sweep_dir as usize % 3]),
+                    2 => format!("Stairs {} bar(s) {}", [1, 2, 4][f.sweep_bars as usize % 3], ["up", "down", "up-down"][f.sweep_dir as usize % 3]),
                     _ => format!("Gate {} · {}/16", div, f.pattern.count_ones()),
                 };
                 format!("{}{} · {}", mode, slope, motion)
             }
             ModuleKind::Space => {
-                let mode = ["Ping-pong", "Dub filtré", "Chorus"][self.space.mode as usize % 3];
+                let mode = ["Ping-pong", "Dub filter", "Chorus"][self.space.mode as usize % 3];
                 format!("{} · {:.0}%", mode, self.space.mix * 100.0)
             }
         }

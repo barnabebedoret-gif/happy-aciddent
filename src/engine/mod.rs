@@ -89,6 +89,10 @@ impl<T: Copy> Hist<T> {
         self.pos = len as u8;
     }
 
+    pub fn set_current(&mut self, p: T) {
+        self.patches[self.pos as usize] = p;
+    }
+
     pub fn back(&mut self) -> bool {
         if self.pos > 0 {
             self.pos -= 1;
@@ -210,6 +214,17 @@ impl Engine {
             self.history.pos -= 1;
             self.switch_to(self.history.current());
         }
+    }
+
+    /// Allume ou éteint un module dans l'accident en cours (sans créer de nouvel accident).
+    pub fn toggle_module(&mut self, i: usize) {
+        if i >= NUM_MODULES {
+            return;
+        }
+        let mut p = *self.patch();
+        p.enabled[i] = !p.enabled[i];
+        self.history.set_current(p);
+        self.switch_to(p);
     }
 
     pub fn history_next(&mut self) {

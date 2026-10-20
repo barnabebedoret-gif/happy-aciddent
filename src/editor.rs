@@ -41,11 +41,11 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                         ui.label(RichText::new(concat!("GENERATOR  —  by BRNB  ·  v", env!("CARGO_PKG_VERSION"))).size(12.0).color(DIM));
                     });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add_enabled(hist.pos + 1 < hist.len, egui::Button::new("▶")).clicked() {
+                        if ui.add_enabled(hist.pos + 1 < hist.len, egui::Button::new("▶")).on_hover_text("Next accident in the history").clicked() {
                             shared.next.fetch_add(1, Ordering::Relaxed);
                         }
                         ui.label(RichText::new(format!("{}/{}", hist.pos + 1, hist.len)).color(TEXT));
-                        if ui.add_enabled(hist.pos > 0, egui::Button::new("◀")).clicked() {
+                        if ui.add_enabled(hist.pos > 0, egui::Button::new("◀")).on_hover_text("Previous accident. The last 16 are kept and saved with your Live set.").clicked() {
                             shared.prev.fetch_add(1, Ordering::Relaxed);
                         }
                         ui.label(RichText::new(format!("#{:08X}", patch.seed)).monospace().color(DIM));
@@ -58,45 +58,45 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                     let acc = egui::Button::new(RichText::new("ACCIDENT").size(30.0).strong().color(BG))
                         .fill(ACID)
                         .min_size(Vec2::new(430.0, 64.0));
-                    if ui.add(acc).on_hover_text("Nouveau tirage (radicalité = Chaos)").clicked() {
+                    if ui.add(acc).on_hover_text("Roll a brand-new accident: new effects, order and settings. CHAOS sets how wild it gets. Locked modules are kept.").clicked() {
                         shared.accident.fetch_add(1, Ordering::Relaxed);
                     }
                     let mt = egui::Button::new(RichText::new("MUTATE").size(22.0).strong().color(TEXT))
                         .fill(PINK.gamma_multiply(0.85))
                         .min_size(Vec2::new(250.0, 64.0));
-                    if ui.add(mt).on_hover_text("Petite variation de l'accident actuel").clicked() {
+                    if ui.add(mt).on_hover_text("Small variation of the current accident. Great to explore around a sound you like.").clicked() {
                         shared.mutate.fetch_add(1, Ordering::Relaxed);
                     }
                 });
                 ui.add_space(10.0);
 
                 // ---------------- Macros
-                let label = |ui: &mut egui::Ui, t: &str| {
-                    ui.label(RichText::new(t).size(12.0).color(DIM));
+                let label = |ui: &mut egui::Ui, t: &str, tip: &str| {
+                    ui.label(RichText::new(t).size(12.0).color(DIM)).on_hover_text(tip);
                 };
                 egui::Grid::new("macros").num_columns(4).min_col_width(60.0).spacing(Vec2::new(12.0, 8.0)).show(ui, |ui| {
-                    label(ui, "CHAOS");
-                    ui.add(widgets::ParamSlider::for_param(&params.chaos, setter).with_width(160.0));
-                    label(ui, "TIMBRE / PATTERN");
-                    ui.add(widgets::ParamSlider::for_param(&params.balance, setter).with_width(160.0));
+                    label(ui, "CHAOS", "How radical ACCIDENT and MUTATE are. Low = small changes around the current sound. High = anything goes.");
+                    ui.add(widgets::ParamSlider::for_param(&params.chaos, setter).with_width(160.0)).on_hover_text("How radical ACCIDENT and MUTATE are. Low = small changes around the current sound. High = anything goes.");
+                    label(ui, "TIMBRE / PATTERN", "Steers the randomness. Left: tone changes (filter, drive). Right: rhythm and melody changes (gate, stutter, pitch sequences). Middle: both.");
+                    ui.add(widgets::ParamSlider::for_param(&params.balance, setter).with_width(160.0)).on_hover_text("Steers the randomness. Left: tone changes (filter, drive). Right: rhythm and melody changes (gate, stutter, pitch sequences). Middle: both.");
                     ui.end_row();
-                    label(ui, "MOVEMENT");
-                    ui.add(widgets::ParamSlider::for_param(&params.movement, setter).with_width(160.0));
-                    label(ui, "SPEED");
-                    ui.add(widgets::ParamSlider::for_param(&params.speed, setter).with_width(160.0));
+                    label(ui, "MOVEMENT", "Amount of tempo-synced modulation inside the effects. On the filter it adds random jumps on each step (never a wah).");
+                    ui.add(widgets::ParamSlider::for_param(&params.movement, setter).with_width(160.0)).on_hover_text("Amount of tempo-synced modulation inside the effects. On the filter it adds random jumps on each step (never a wah).");
+                    label(ui, "SPEED", "Plays every rhythm (gate, stutter, filter steps, pitch melody) from 1/4 to 4x speed. Delays stay locked to the real tempo.");
+                    ui.add(widgets::ParamSlider::for_param(&params.speed, setter).with_width(160.0)).on_hover_text("Plays every rhythm (gate, stutter, filter steps, pitch melody) from 1/4 to 4x speed. Delays stay locked to the real tempo.");
                     ui.end_row();
-                    label(ui, "TONALITÉ");
+                    label(ui, "KEY", "Key and scale. Pitch melodies always stay in this scale.");
                     ui.horizontal(|ui| {
-                        ui.add(widgets::ParamSlider::for_param(&params.key, setter).with_width(50.0));
-                        ui.add(widgets::ParamSlider::for_param(&params.scale, setter).with_width(60.0));
+                        ui.add(widgets::ParamSlider::for_param(&params.key, setter).with_width(50.0)).on_hover_text("Key and scale. Pitch melodies always stay in this scale.");
+                        ui.add(widgets::ParamSlider::for_param(&params.scale, setter).with_width(60.0)).on_hover_text("Key and scale. Pitch melodies always stay in this scale.");
                     });
-                    label(ui, "MIX");
-                    ui.add(widgets::ParamSlider::for_param(&params.mix, setter).with_width(160.0));
+                    label(ui, "MIX", "Dry / wet balance. 100% = fully processed.");
+                    ui.add(widgets::ParamSlider::for_param(&params.mix, setter).with_width(160.0)).on_hover_text("Dry / wet balance. 100% = fully processed.");
                     ui.end_row();
                     ui.label("");
                     ui.label("");
-                    label(ui, "OUTPUT");
-                    ui.add(widgets::ParamSlider::for_param(&params.output, setter).with_width(160.0));
+                    label(ui, "OUTPUT", "Output level, after the automatic gain compensation and the safety limiter.");
+                    ui.add(widgets::ParamSlider::for_param(&params.output, setter).with_width(160.0)).on_hover_text("Output level, after the automatic gain compensation and the safety limiter.");
                     ui.end_row();
                 });
                 ui.add_space(12.0);
@@ -136,14 +136,21 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                                         ui.set_min_size(Vec2::new(inner, 52.0));
                                         ui.set_max_width(inner);
                                         ui.horizontal(|ui| {
-                                            ui.label(RichText::new(kind.name()).size(15.0).strong().color(if on { ACID } else { DIM }));
+                                            let name = egui::Button::new(RichText::new(kind.name()).size(15.0).strong().color(if on { ACID } else { DIM })).frame(false);
+                                            if ui
+                                                .add(name)
+                                                .on_hover_text("Click to turn this effect on or off. Turn it off and LOCK it to keep it out of future accidents.")
+                                                .clicked()
+                                            {
+                                                shared.toggle[i].fetch_add(1, Ordering::Relaxed);
+                                            }
                                             if on {
                                                 ui.label(RichText::new(format!("#{}", positions[i])).size(11.0).color(DIM));
                                             }
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                 let mut v = locked;
                                                 let txt = RichText::new("LOCK").size(11.0).color(if locked { PINK } else { DIM });
-                                                if ui.toggle_value(&mut v, txt).on_hover_text("Garder ce module tel quel").changed() {
+                                                if ui.toggle_value(&mut v, txt).on_hover_text("Keep this module exactly as it is (on/off and settings) on the next ACCIDENT or MUTATE.").changed() {
                                                     setter.begin_set_parameter(locks[i]);
                                                     setter.set_parameter(locks[i], v);
                                                     setter.end_set_parameter(locks[i]);
@@ -151,7 +158,7 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                                             });
                                         });
                                         ui.add_space(2.0);
-                                        let desc = if on { patch.describe(kind) } else { "off".to_string() };
+                                        let desc = if on { patch.describe(kind) } else { "off  (click the name to turn on)".to_string() };
                                         ui.label(RichText::new(desc).size(12.0).color(if on { TEXT } else { DIM }));
                                     });
                             });
@@ -169,7 +176,7 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                     .filter(|&m| patch.enabled[m])
                     .map(|m| KINDS[m].name())
                     .collect();
-                ui.label(RichText::new(format!("CHAÎNE :  IN  >  {}  >  OUT", chain.join("  >  "))).size(12.0).color(DIM));
+                ui.label(RichText::new(format!("CHAIN :  IN  >  {}  >  OUT", chain.join("  >  "))).size(12.0).color(DIM));
             });
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         },

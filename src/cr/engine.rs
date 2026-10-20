@@ -12,9 +12,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub const NUM_GROUPS: usize = 4;
 pub const LETTERS: [&str; 4] = ["A", "B", "C", "D"];
 pub const TURN_BEATS: [f64; 6] = [0.25, 0.5, 1.0, 2.0, 4.0, 8.0];
-pub const TURN_NAMES: [&str; 6] = ["1/16", "1/8", "1/4", "1/2", "1 mes.", "2 mes."];
+pub const TURN_NAMES: [&str; 6] = ["1/16", "1/8", "1/4", "1/2", "1 bar", "2 bars"];
 pub const LENS: [usize; 3] = [4, 8, 16];
-pub const MODE_NAMES: [&str; 3] = ["Alterné", "Aléatoire", "Répétitions"];
+pub const MODE_NAMES: [&str; 3] = ["Alternate", "Random", "Repeats"];
 pub const SILENT: u8 = 255;
 
 /// Réglages partagés par groupe (0 = jamais initialisé)

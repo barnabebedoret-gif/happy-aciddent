@@ -65,8 +65,8 @@ impl Default for CrParams {
         Self {
             editor_state: EguiState::from_size(720, 500),
             history: Arc::new(RwLock::new(CrHistory::default())),
-            letter: EnumParam::new("Lettre", Letter::A),
-            group: IntParam::new("Groupe", 1, IntRange::Linear { min: 1, max: 4 }),
+            letter: EnumParam::new("Letter", Letter::A),
+            group: IntParam::new("Group", 1, IntRange::Linear { min: 1, max: 4 }),
             depth: FloatParam::new("Depth", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 })
                 .with_unit(" %")
                 .with_value_to_string(formatters::v2s_f32_percentage(0))
@@ -238,7 +238,7 @@ impl Plugin for HappyAccidentCr {
 
 impl ClapPlugin for HappyAccidentCr {
     const CLAP_ID: &'static str = "com.brnb.happy-accident-call-response";
-    const CLAP_DESCRIPTION: Option<&'static str> = Some("Call & response entre plusieurs pistes");
+    const CLAP_DESCRIPTION: Option<&'static str> = Some("Call & response between several tracks");
     const CLAP_MANUAL_URL: Option<&'static str> = None;
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
     const CLAP_FEATURES: &'static [ClapFeature] = &[ClapFeature::AudioEffect, ClapFeature::Stereo, ClapFeature::Utility];

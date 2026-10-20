@@ -136,14 +136,14 @@ impl DubPatch {
             }
             1 => {
                 if self.send_all {
-                    "Envoi continu".to_string()
+                    "Continuous send".to_string()
                 } else {
                     format!("Throws {} · {}/16", ["1/8", "1/16"][self.send_div as usize % 2], self.send_pattern.count_ones())
                 }
             }
             2 => {
-                let mode = ["Bande dub", "BP", "HP", "LP"][self.filter_mode as usize % 4];
-                let motion = ["fixe", "par écho", "escalier"][self.filter_motion as usize % 3];
+                let mode = ["Dub band", "BP", "HP", "LP"][self.filter_mode as usize % 4];
+                let motion = ["fixed", "per echo", "stairs"][self.filter_motion as usize % 3];
                 format!("{} · {}", mode, motion)
             }
             _ => format!("Drive {:.0}% · Wobble {:.0}%", self.drive * 100.0, self.wobble * 100.0),
