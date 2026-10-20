@@ -2,6 +2,12 @@
 
 Multi-FX aléatoire pour transformer des leads et trouver des idées. Format VST3 et CLAP (Windows / macOS), compatible avec Ableton Live 10 et plus récent.
 
+## Distribuer le plugin
+- Chaque push sur GitHub produit l'artefact **HappyAccidentGenerator-windows**, qui contient l'installeur `.exe` et un zip manuel, ainsi qu'un zip macOS bêta.
+- Pour publier une version : change `version` dans `Cargo.toml`, puis crée un tag, par exemple `git tag v0.1.0 && git push --tags`. GitHub prépare alors une **Release en brouillon** avec tous les fichiers. Il reste à la relire et à cliquer sur Publish.
+- La page d'installation pour les utilisateurs (FR / EN) est dans `INSTALL.md`.
+- Licence GPLv3 (voir `LICENSE`) : si tu distribues le plugin, le code source doit être disponible.
+
 ## Obtenir le .vst3 Windows sans rien installer (GitHub)
 1. Crée un repo sur github.com, par exemple `happy-accident`, et envoie-y ce dossier (ou glisse les fichiers dans l'interface web « Add file → Upload files », en gardant le dossier `.github`).
 2. Ouvre l'onglet **Actions**. La compilation démarre seule, compte environ 10 minutes.

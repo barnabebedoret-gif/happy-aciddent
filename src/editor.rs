@@ -38,7 +38,7 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
                         ui.label(RichText::new("HAPPY ACCIDENT").size(26.0).strong().color(ACID));
-                        ui.label(RichText::new("GENERATOR  —  by BRNB").size(12.0).color(DIM));
+                        ui.label(RichText::new(concat!("GENERATOR  —  by BRNB  ·  v", env!("CARGO_PKG_VERSION"))).size(12.0).color(DIM));
                     });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.add_enabled(hist.pos + 1 < hist.len, egui::Button::new("▶")).clicked() {

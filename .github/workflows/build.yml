@@ -2,7 +2,12 @@ name: Build plugin
 
 on:
   push:
+    branches: ["**"]
+    tags: ["v*"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -26,15 +31,48 @@ jobs:
       - name: Tests
         run: cargo test --release
 
+      # ---------------- Windows
       - name: Bundle (Windows)
         if: matrix.name == 'windows'
         run: cargo xtask bundle happy_accident --release
 
+      - name: Installeur + zip (Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          $v = ((cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages | Where-Object name -eq 'happy_accident').version
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$v" installer\windows.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "target\installer\*.exe" dist\
+          Copy-Item INSTALL.md, LICENSE "target\bundled\"
+          Compress-Archive -Path "target\bundled\*" -DestinationPath "dist\HappyAccidentGenerator-$v-Windows-manuel.zip"
+
+      # ---------------- macOS
       - name: Bundle (macOS universel)
         if: matrix.name == 'macos'
         run: cargo xtask bundle-universal happy_accident --release
 
+      - name: Zip (macOS)
+        if: matrix.name == 'macos'
+        run: |
+          V=$(cargo metadata --no-deps --format-version 1 | python3 -c "import json,sys; print([p['version'] for p in json.load(sys.stdin)['packages'] if p['name']=='happy_accident'][0])")
+          echo "VERSION=$V" >> $GITHUB_ENV
+          cp INSTALL.md LICENSE target/bundled/
+          mkdir -p dist
+          (cd target/bundled && zip -qry "../../dist/HappyAccidentGenerator-$V-macOS-beta.zip" .)
+
+      # ---------------- Publication
       - uses: actions/upload-artifact@v4
         with:
           name: HappyAccidentGenerator-${{ matrix.name }}
-          path: target/bundled/
+          path: dist/
+
+      - name: Release GitHub (sur tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          draft: true
