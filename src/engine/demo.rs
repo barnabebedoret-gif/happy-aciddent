@@ -73,3 +73,32 @@ pub fn render_sustain_lead(sr: f32, tempo: f64, bars: usize) -> (Vec<f32>, Vec<f
     }
     (l, r)
 }
+
+/// Stabs d'accords façon dub techno (La mineur 9), sur les contretemps. Retourne (gauche, droite).
+pub fn render_stabs(sr: f32, tempo: f64, bars: usize) -> (Vec<f32>, Vec<f32>) {
+    const CHORD: [i32; 5] = [57, 60, 64, 67, 71];
+    let spb = 60.0 / tempo * sr as f64;
+    let total = (bars as f64 * 4.0 * spb) as usize;
+    let mut l = Vec::with_capacity(total);
+    let mut r = Vec::with_capacity(total);
+    let mut ph = [0.0f32; 5];
+    let (mut lp_l, mut lp_r) = (OnePole::default(), OnePole::default());
+    for i in 0..total {
+        let beat = i as f64 / spb;
+        // Un stab sur chaque contretemps, mais pas sur le 4e temps de la 2e mesure (respiration)
+        let pos = (beat - 0.5).rem_euclid(1.0);
+        let silent = (beat as usize % 8) == 7;
+        let env = if silent { 0.0 } else { (-(pos as f32) * 18.0).exp() };
+        let (mut sl, mut sr_) = (0.0, 0.0);
+        for (k, n) in CHORD.iter().enumerate() {
+            ph[k] = (ph[k] + midi_to_hz(*n as f32) * (1.0 + 0.002 * k as f32) / sr).fract();
+            let s = 2.0 * ph[k] - 1.0;
+            sl += s * (1.0 - k as f32 * 0.12);
+            sr_ += s * (0.52 + k as f32 * 0.12);
+        }
+        let k = OnePole::coef(600.0 + 2200.0 * env, sr);
+        l.push(lp_l.lp(sl, k) * env * 0.16);
+        r.push(lp_r.lp(sr_, k) * env * 0.16);
+    }
+    (l, r)
+}

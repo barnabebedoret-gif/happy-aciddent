@@ -204,20 +204,20 @@ impl Default for Patch {
 }
 
 /// Mélange "valeur actuelle" -> "valeur aléatoire" selon l'intensité.
-struct Mutator {
-    rng: Rng,
-    a: f32,
+pub(crate) struct Mutator {
+    pub(crate) rng: Rng,
+    pub(crate) a: f32,
 }
 
 impl Mutator {
-    fn f(&mut self, cur: f32, lo: f32, hi: f32) -> f32 {
+    pub(crate) fn f(&mut self, cur: f32, lo: f32, hi: f32) -> f32 {
         let r = lo + (hi - lo) * self.rng.f32();
         (cur + (r - cur) * self.a).clamp(lo.min(hi), lo.max(hi))
     }
-    fn reroll(&mut self) -> bool {
+    pub(crate) fn reroll(&mut self) -> bool {
         self.rng.chance(self.a)
     }
-    fn u8(&mut self, cur: u8, n: u32) -> u8 {
+    pub(crate) fn u8(&mut self, cur: u8, n: u32) -> u8 {
         if self.reroll() {
             self.rng.below(n) as u8
         } else {

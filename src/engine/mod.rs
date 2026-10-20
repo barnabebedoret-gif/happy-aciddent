@@ -51,25 +51,33 @@ impl Default for Transport {
 pub const HISTORY_LEN: usize = 16;
 
 /// Historique des accidents (taille fixe : pas d'allocation dans le thread audio).
+/// Générique pour être partagé entre les plugins (Generator, Dub…).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct History {
-    pub patches: [Patch; HISTORY_LEN],
+#[serde(bound(serialize = "T: Serialize", deserialize = "T: Deserialize<'de>"))]
+pub struct Hist<T> {
+    pub patches: [T; HISTORY_LEN],
     pub len: u8,
     pub pos: u8,
 }
 
-impl Default for History {
+pub type History = Hist<Patch>;
+
+impl<T: Copy + Default> Default for Hist<T> {
     fn default() -> Self {
-        History { patches: [Patch::default(); HISTORY_LEN], len: 1, pos: 0 }
+        Hist { patches: [T::default(); HISTORY_LEN], len: 1, pos: 0 }
     }
 }
 
-impl History {
-    pub fn current(&self) -> Patch {
+impl<T: Copy> Hist<T> {
+    pub fn current(&self) -> T {
         self.patches[self.pos as usize]
     }
 
-    fn push(&mut self, p: Patch) {
+    pub fn is_valid(&self) -> bool {
+        self.len > 0 && self.pos < self.len && self.len as usize <= HISTORY_LEN
+    }
+
+    pub fn push(&mut self, p: T) {
         // On coupe le "futur" si on était revenu en arrière
         let mut len = self.pos as usize + 1;
         if len == HISTORY_LEN {
@@ -79,6 +87,24 @@ impl History {
         self.patches[len] = p;
         self.len = (len + 1) as u8;
         self.pos = len as u8;
+    }
+
+    pub fn back(&mut self) -> bool {
+        if self.pos > 0 {
+            self.pos -= 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn forward(&mut self) -> bool {
+        if self.pos + 1 < self.len {
+            self.pos += 1;
+            true
+        } else {
+            false
+        }
     }
 }
 

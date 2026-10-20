@@ -40,3 +40,15 @@ Astuce : quand un accident sonne, resample-le (piste audio en entrée Resampling
 - Le moteur audio (`src/engine`) ne dépend pas du format plugin.
 
 Licence : GPL-3.0 (imposée par le SDK VST3 utilisé par nih-plug).
+
+## Happy Accident DUB (2e plugin, même installeur)
+Delay dub filtré et aléatoire. Le son sec passe intact et seuls les échos sont transformés.
+- **ACCIDENT / MUTATE / ◀ ▶** : comme dans le Generator.
+- **4 groupes verrouillables** :
+  - **TIME** : 1/16 à 1/4D, ping-pong, temps gauche et droite différents.
+  - **SEND** : envoi continu, ou « throws » où seuls certains pas partent dans le delay.
+  - **FILTER** : filtre dans la boucle (bande dub, BP, HP, LP), fixe, différent à chaque écho, ou en escalier.
+  - **COLOR** : saturation et wobble de bande.
+- **Feedback**, **Echoes** (niveau des échos), **Movement**.
+- **THROW** : maintiens le bouton pour pousser le feedback au-delà de 100 % et lancer la spirale dub. La saturation borne le niveau. Il est mappable sur un pad.
+- Quand l'accident change le temps de delay, la tête glisse comme une bande : c'est voulu.
