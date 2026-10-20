@@ -6,6 +6,7 @@ use nih_plug_egui::EguiState;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
+pub mod cr;
 pub mod dub;
 mod editor;
 pub mod engine;
@@ -352,5 +353,5 @@ impl Vst3Plugin for HappyAccident {
     const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = &[Vst3SubCategory::Fx, Vst3SubCategory::Distortion];
 }
 
-nih_export_clap!(HappyAccident, dub::HappyAccidentDub);
-nih_export_vst3!(HappyAccident, dub::HappyAccidentDub);
+nih_export_clap!(HappyAccident, dub::HappyAccidentDub, cr::HappyAccidentCr);
+nih_export_vst3!(HappyAccident, dub::HappyAccidentDub, cr::HappyAccidentCr);

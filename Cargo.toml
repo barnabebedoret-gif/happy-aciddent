@@ -19,6 +19,10 @@ standalone = ["nih_plug/standalone"]
 name = "standalone"
 required-features = ["standalone"]
 
+[[bin]]
+name = "standalone_cr"
+required-features = ["standalone"]
+
 [dependencies]
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
 nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }

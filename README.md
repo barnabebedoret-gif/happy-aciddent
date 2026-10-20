@@ -52,3 +52,11 @@ Delay dub filtré et aléatoire. Le son sec passe intact et seuls les échos son
 - **Feedback**, **Echoes** (niveau des échos), **Movement**.
 - **THROW** : maintiens le bouton pour pousser le feedback au-delà de 100 % et lancer la spirale dub. La saturation borne le niveau. Il est mappable sur un pad.
 - Quand l'accident change le temps de delay, la tête glisse comme une bande : c'est voulu.
+
+## Happy Accident CALL & RESPONSE (3e plugin, même installeur)
+Pose une instance sur chaque piste (2 à 4 samples) et donne une **lettre** à chacune : A, B, C ou D. Une seule lettre joue à la fois, selon le pattern du groupe.
+- Les instances d'un même **groupe** (1 à 4) se synchronisent toutes seules. ACCIDENT, MUTATE, ◀ ▶ et les réglages modifient tout le groupe, depuis n'importe quelle instance.
+- **VOIX** : 2, 3 ou 4. **MODE** : Alterné, Aléatoire, Répétitions. **TOUR** : de 1/16 à 2 mesures. **CASES** : 4, 8 ou 16. **SILENCES** : des cases où personne ne parle.
+- **DEPTH** : à 100 %, les autres lettres sont coupées ; plus bas, elles sont seulement baissées (effet de ducking). **FADE** : la durée des fondus entre les tours.
+- Le pattern suit la position de lecture d'Ableton : il retombe toujours au même endroit.
+- Limite : la synchro automatique fonctionne entre instances chargées dans le même processus, ce qui est le cas par défaut dans Ableton.
