@@ -8,15 +8,15 @@ use nih_plug_egui::{create_egui_editor, widgets};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-const BG: Color32 = Color32::from_rgb(14, 14, 16);
-const PANEL: Color32 = Color32::from_rgb(28, 28, 32);
-const DIM: Color32 = Color32::from_rgb(120, 120, 128);
-const TEXT: Color32 = Color32::from_rgb(232, 232, 236);
+const BG: Color32 = Color32::from_rgb(18, 18, 20);
+const PANEL: Color32 = Color32::from_rgb(30, 30, 34);
+const DIM: Color32 = Color32::from_rgb(128, 128, 134);
+const TEXT: Color32 = Color32::from_rgb(226, 226, 228);
 pub const LETTER_COLORS: [Color32; 4] = [
-    Color32::from_rgb(198, 255, 61),
-    Color32::from_rgb(255, 61, 139),
-    Color32::from_rgb(64, 210, 255),
-    Color32::from_rgb(255, 150, 40),
+    Color32::from_rgb(222, 214, 196),
+    Color32::from_rgb(150, 176, 200),
+    Color32::from_rgb(184, 166, 204),
+    Color32::from_rgb(206, 162, 140),
 ];
 
 fn chip(ui: &mut egui::Ui, text: &str, selected: bool, color: Color32, w: f32) -> bool {

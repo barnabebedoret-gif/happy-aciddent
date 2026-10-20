@@ -8,19 +8,19 @@ use nih_plug_egui::{create_egui_editor, widgets};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-const BG: Color32 = Color32::from_rgb(12, 14, 16);
-const PANEL: Color32 = Color32::from_rgb(24, 28, 30);
-const PANEL_ON: Color32 = Color32::from_rgb(18, 40, 38);
-const TEAL: Color32 = Color32::from_rgb(64, 230, 200);
-const ORANGE: Color32 = Color32::from_rgb(255, 120, 40);
-const DIM: Color32 = Color32::from_rgb(120, 124, 128);
+const BG: Color32 = Color32::from_rgb(18, 18, 20);
+const PANEL: Color32 = Color32::from_rgb(30, 30, 34);
+const PANEL_ON: Color32 = Color32::from_rgb(42, 42, 47);
+const TEAL: Color32 = Color32::from_rgb(222, 218, 208);
+const ORANGE: Color32 = Color32::from_rgb(208, 168, 110);
+const DIM: Color32 = Color32::from_rgb(128, 128, 134);
 const GROUP_TIPS: [&str; 4] = [
     "TIME: delay times (left / right) and ping-pong. LOCK keeps them on the next ACCIDENT.",
     "SEND: which steps go into the delay. Everything, or only some hits (dub throws). LOCK keeps it.",
     "FILTER: filter inside the feedback loop, so each repeat gets filtered again. Fixed, different on each echo, or stepping over 2 bars. LOCK keeps it.",
     "COLOR: saturation and tape wobble inside the loop. LOCK keeps it.",
 ];
-const TEXT: Color32 = Color32::from_rgb(232, 232, 236);
+const TEXT: Color32 = Color32::from_rgb(226, 226, 228);
 
 pub fn create(params: Arc<DubParams>, shared: Arc<DubShared>) -> Option<Box<dyn Editor>> {
     create_egui_editor(

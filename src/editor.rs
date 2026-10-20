@@ -8,13 +8,13 @@ use nih_plug_egui::{create_egui_editor, widgets};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-const BG: Color32 = Color32::from_rgb(14, 14, 16);
-const PANEL: Color32 = Color32::from_rgb(26, 26, 30);
-const PANEL_ON: Color32 = Color32::from_rgb(38, 44, 22);
-const ACID: Color32 = Color32::from_rgb(198, 255, 61);
-const PINK: Color32 = Color32::from_rgb(255, 61, 139);
-const DIM: Color32 = Color32::from_rgb(120, 120, 128);
-const TEXT: Color32 = Color32::from_rgb(232, 232, 236);
+const BG: Color32 = Color32::from_rgb(18, 18, 20);
+const PANEL: Color32 = Color32::from_rgb(30, 30, 34);
+const PANEL_ON: Color32 = Color32::from_rgb(42, 42, 47);
+const ACID: Color32 = Color32::from_rgb(222, 218, 208);
+const PINK: Color32 = Color32::from_rgb(208, 168, 110);
+const DIM: Color32 = Color32::from_rgb(128, 128, 134);
+const TEXT: Color32 = Color32::from_rgb(226, 226, 228);
 
 pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Editor>> {
     create_egui_editor(
@@ -62,7 +62,7 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                         shared.accident.fetch_add(1, Ordering::Relaxed);
                     }
                     let mt = egui::Button::new(RichText::new("MUTATE").size(22.0).strong().color(TEXT))
-                        .fill(PINK.gamma_multiply(0.85))
+                        .fill(PANEL_ON)
                         .min_size(Vec2::new(250.0, 64.0));
                     if ui.add(mt).on_hover_text("Small variation of the current accident. Great to explore around a sound you like.").clicked() {
                         shared.mutate.fetch_add(1, Ordering::Relaxed);
