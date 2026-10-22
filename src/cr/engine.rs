@@ -7,7 +7,7 @@
 
 use crate::engine::rng::Rng;
 use crate::engine::Transport;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 
 pub const NUM_GROUPS: usize = 4;
 pub const LETTERS: [&str; 4] = ["A", "B", "C", "D"];
@@ -173,8 +173,69 @@ pub fn load_group(group: usize) -> Option<CrSettings> {
     CrSettings::unpack(GROUPS[group % NUM_GROUPS].load(Ordering::Acquire))
 }
 
+/// Applique des réglages au groupe ; ils sont aussi mémorisés dans la variation active.
 pub fn store_group(group: usize, s: &CrSettings) {
-    GROUPS[group % NUM_GROUPS].store(s.pack(), Ordering::Release);
+    let g = group % NUM_GROUPS;
+    let v = s.pack();
+    GROUPS[g].store(v, Ordering::Release);
+    VARS[g][active_variation(g)].store(v, Ordering::Release);
+}
+
+// ---------------------------------------------------------------- VARIATIONS
+/// Chaque groupe mémorise jusqu'à 4 variations (patterns complets) ; une seule est active.
+pub const NUM_VARS: usize = 4;
+pub static VARS: [[AtomicU64; NUM_VARS]; NUM_GROUPS] = [const { [const { AtomicU64::new(0) }; NUM_VARS] }; NUM_GROUPS];
+pub static ACTIVE: [AtomicU8; NUM_GROUPS] = [const { AtomicU8::new(0) }; NUM_GROUPS];
+
+pub fn active_variation(group: usize) -> usize {
+    ACTIVE[group % NUM_GROUPS].load(Ordering::Acquire) as usize % NUM_VARS
+}
+
+/// Passe tout le groupe sur la variation `v`. Une variation encore vide démarre comme une copie
+/// du pattern en cours (on la modifie ensuite avec ACCIDENT, MUTATE ou les réglages).
+pub fn select_variation(group: usize, v: usize) {
+    let g = group % NUM_GROUPS;
+    let v = v % NUM_VARS;
+    let cur = GROUPS[g].load(Ordering::Acquire);
+    let old = active_variation(g);
+    if cur != 0 {
+        VARS[g][old].store(cur, Ordering::Release);
+    }
+    ACTIVE[g].store(v as u8, Ordering::Release);
+    let target = VARS[g][v].load(Ordering::Acquire);
+    if target == 0 {
+        if cur != 0 {
+            VARS[g][v].store(cur, Ordering::Release);
+        }
+    } else {
+        GROUPS[g].store(target, Ordering::Release);
+    }
+}
+
+/// État des variations à sauvegarder avec le projet : 4 variations + index actif.
+pub fn snapshot_vars(group: usize) -> [u64; NUM_VARS + 1] {
+    let g = group % NUM_GROUPS;
+    let mut out = [0u64; NUM_VARS + 1];
+    for (k, slot) in VARS[g].iter().enumerate() {
+        out[k] = slot.load(Ordering::Acquire);
+    }
+    out[NUM_VARS] = active_variation(g) as u64;
+    out
+}
+
+/// Restaure les variations sauvegardées si le groupe n'en a encore aucune.
+pub fn init_vars(group: usize, saved: &[u64; NUM_VARS + 1]) {
+    let g = group % NUM_GROUPS;
+    if VARS[g].iter().all(|v| v.load(Ordering::Acquire) == 0) && saved[..NUM_VARS].iter().any(|&v| v != 0) {
+        for (k, slot) in VARS[g].iter().enumerate() {
+            slot.store(saved[k], Ordering::Release);
+        }
+        ACTIVE[g].store((saved[NUM_VARS] as usize % NUM_VARS) as u8, Ordering::Release);
+        let a = saved[NUM_VARS] as usize % NUM_VARS;
+        if saved[a] != 0 {
+            GROUPS[g].store(saved[a], Ordering::Release);
+        }
+    }
 }
 
 /// Initialise le groupe avec ces réglages s'il est encore vide ; retourne les réglages en vigueur.

@@ -128,6 +128,31 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                 });
                 ui.add_space(10.0);
 
+                // ---------------- Variations
+                let active_var = super::engine::active_variation(params.group_index());
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("VARIATION").size(12.0).color(DIM)).on_hover_text(
+                        "Each group stores 4 variations of the pattern. Click to switch the whole group. \
+                         To switch during your arrangement, automate the Variation parameter on ONE track only.",
+                    );
+                    for v in 0..super::engine::NUM_VARS {
+                        let b = egui::Button::new(RichText::new((v + 1).to_string()).size(16.0).strong().color(if v == active_var { BG } else { TEXT }))
+                            .fill(if v == active_var { LETTER_COLORS[0] } else { PANEL })
+                            .min_size(Vec2::new(44.0, 30.0));
+                        let tip = "Switch the whole group to this variation. An empty variation starts as a copy of the current one: then change it with ACCIDENT, MUTATE or the settings.";
+                        if ui.add(b).on_hover_text(tip).clicked() {
+                            setter.begin_set_parameter(&params.variation);
+                            setter.set_parameter(&params.variation, super::Variation::from_index(v));
+                            setter.end_set_parameter(&params.variation);
+                            // Si ce paramètre avait déjà cette valeur, on bascule directement
+                            if params.variation.value().index() == v {
+                                super::engine::select_variation(params.group_index(), v);
+                            }
+                        }
+                    }
+                });
+                ui.add_space(6.0);
+
                 // ---------------- Timeline du pattern
                 let avail = ui.available_width();
                 let cell = ((avail - 4.0 * (len as f32 - 1.0)) / len as f32).floor().min(80.0);
