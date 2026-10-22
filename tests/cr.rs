@@ -115,3 +115,29 @@ fn variations_live_1_2() {
     let snap = snapshot_vars(g);
     assert_eq!(snap, [c.pack(), a.pack(), b.pack(), 0]);
 }
+
+#[test]
+fn presets_donnent_les_bons_patterns() {
+    use happy_accident::cr::engine::{apply_preset, slot, LETTERS};
+    use happy_accident::cr::presets::PRESETS;
+    let show = |s: &CrSettings| s.pattern()[..s.len()].iter().map(|&v| if v == SILENT { "." } else { LETTERS[v as usize] }).collect::<String>();
+    assert!(PRESETS.len() >= 15);
+    for p in PRESETS {
+        if !p.expect.is_empty() {
+            assert_eq!(show(&p.live), p.expect, "preset {}", p.name);
+        }
+        for v in [Some(p.live), p.var1, p.var2].into_iter().flatten() {
+            assert_eq!(CrSettings::unpack(v.pack()), Some(v), "preset {} non encodable", p.name);
+        }
+    }
+    // Charger un preset avec variations remplit 1 et 2 ; un preset simple ne touche pas les variations
+    let g = 1;
+    let with = PRESETS.iter().find(|p| p.var1.is_some()).unwrap();
+    apply_preset(g, with);
+    assert_eq!(load_group(g), Some(with.live));
+    assert_eq!(slot(g, 0), with.var1);
+    let plain = PRESETS.iter().find(|p| p.var1.is_none()).unwrap();
+    apply_preset(g, plain);
+    assert_eq!(load_group(g), Some(plain.live));
+    assert_eq!(slot(g, 0), with.var1);
+}

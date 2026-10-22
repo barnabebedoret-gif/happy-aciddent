@@ -29,7 +29,7 @@ fn chip(ui: &mut egui::Ui, text: &str, selected: bool, color: Color32, w: f32) -
 pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Editor>> {
     create_egui_editor(
         params.editor_state.clone(),
-        (0u64, false),
+        (0u64, false, None::<usize>),
         |ctx, _| {
             let mut style = (*ctx.style()).clone();
             style.visuals = egui::Visuals::dark();
@@ -90,6 +90,34 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                     }
                 });
                 ui.add_space(8.0);
+
+                // ---------------- Presets d'usine
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("PRESET").size(12.0).color(DIM)).on_hover_text(
+                        "Factory presets for the whole group. BASICS show the main ideas, PUSHED go further, \
+                         WITH VARIATIONS also fill variations 1 and 2 for automation. Hover a preset to read how to use it.",
+                    );
+                    let current = seed_state.2.map(|i| super::presets::PRESETS[i].name).unwrap_or("Choose a preset…");
+                    egui::ComboBox::from_id_salt("cr_preset").width(280.0).selected_text(current).show_ui(ui, |ui| {
+                        for (cat, title) in super::presets::CATEGORY_NAMES {
+                            ui.label(RichText::new(title).size(11.0).strong().color(DIM));
+                            for (i, p) in super::presets::PRESETS.iter().enumerate().filter(|(_, p)| p.category == cat) {
+                                if ui.selectable_label(seed_state.2 == Some(i), p.name).on_hover_text(p.tip).clicked() {
+                                    super::engine::apply_preset(params.group_index(), p);
+                                    if let Ok(mut h) = params.history.write() {
+                                        h.push(p.live.pack());
+                                    }
+                                    seed_state.2 = Some(i);
+                                }
+                            }
+                            ui.add_space(4.0);
+                        }
+                    });
+                    if let Some(i) = seed_state.2 {
+                        ui.label(RichText::new("hover for tips").size(11.0).color(DIM)).on_hover_text(super::presets::PRESETS[i].tip);
+                    }
+                });
+                ui.add_space(6.0);
 
                 // ---------------- Accident
                 ui.horizontal(|ui| {

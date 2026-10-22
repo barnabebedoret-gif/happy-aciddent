@@ -3,6 +3,7 @@
 
 mod editor;
 pub mod engine;
+pub mod presets;
 
 use crate::engine::{Hist, Transport};
 use engine::{init_group, init_vars, load_group, select_variation, snapshot_vars, store_group, CrGate, CrSettings, VAR_LIVE};
@@ -93,7 +94,7 @@ pub struct CrParams {
 impl Default for CrParams {
     fn default() -> Self {
         Self {
-            editor_state: EguiState::from_size(720, 545),
+            editor_state: EguiState::from_size(720, 590),
             history: Arc::new(RwLock::new(CrHistory::default())),
             vars: Arc::new(RwLock::new([0; 4])),
             variation: EnumParam::new("Variation", Variation::Live),

@@ -201,6 +201,18 @@ pub fn slot(group: usize, k: usize) -> Option<CrSettings> {
     CrSettings::unpack(SLOTS[group % NUM_GROUPS][k % NUM_SLOTS].load(Ordering::Acquire))
 }
 
+/// Charge un preset d'usine pour tout le groupe : LIVE est remplacé, et les variations 1 et 2
+/// seulement si le preset en définit.
+pub fn apply_preset(group: usize, p: &super::presets::Preset) {
+    let g = group % NUM_GROUPS;
+    for (k, v) in [p.var1, p.var2].iter().enumerate() {
+        if let Some(v) = v {
+            SLOTS[g][k].store(v.pack(), Ordering::Release);
+        }
+    }
+    store_group(g, &p.live);
+}
+
 /// Sauvegarde ce qu'on entend en ce moment dans la variation `k` (0 ou 1).
 pub fn save_slot(group: usize, k: usize) {
     let g = group % NUM_GROUPS;
