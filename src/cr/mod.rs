@@ -6,10 +6,10 @@ pub mod engine;
 pub mod presets;
 
 use crate::engine::{Hist, Transport};
-use engine::{init_group, init_vars, load_group, select_variation, snapshot_vars, store_group, CrGate, CrSettings, VAR_LIVE};
+use engine::{force_vars, init_group, init_vars, load_group, select_variation, snapshot_vars, store_group, CrGate, CrSettings, VAR_LIVE};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 
 #[derive(Enum, PartialEq, Eq, Clone, Copy, Debug)]
@@ -35,6 +35,39 @@ impl Letter {
 }
 
 pub type CrHistory = Hist<u64>;
+
+/// Valeur sauvegardée avec le projet qui sait si Ableton vient de la recharger
+/// (ouverture du projet, preset, piste copiée-collée…).
+pub struct Watched<T> {
+    pub value: RwLock<T>,
+    pub loaded: AtomicBool,
+}
+
+impl<T> Watched<T> {
+    pub fn new(v: T) -> Self {
+        Watched { value: RwLock::new(v), loaded: AtomicBool::new(false) }
+    }
+}
+
+impl<'a, T> nih_plug::params::persist::PersistentField<'a, T> for Watched<T>
+where
+    T: serde::Serialize + serde::Deserialize<'a> + Send + Sync,
+{
+    fn set(&self, new_value: T) {
+        if let Ok(mut v) = self.value.write() {
+            *v = new_value;
+        }
+        self.loaded.store(true, Ordering::Release);
+    }
+
+    fn map<F, R>(&self, f: F) -> R
+    where
+        F: Fn(&T) -> R,
+    {
+        let v = self.value.read().unwrap_or_else(|e| e.into_inner());
+        f(&v)
+    }
+}
 
 #[derive(Enum, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Variation {
@@ -68,7 +101,7 @@ pub struct CrParams {
     pub history: Arc<RwLock<CrHistory>>,
     /// [LIVE, variation 1, variation 2, actif], sauvegardés avec le projet
     #[persist = "cr-vars"]
-    pub vars: Arc<RwLock<[u64; 4]>>,
+    pub vars: Watched<[u64; 4]>,
 
     /// Live, 1 ou 2. Une seule automation, sur n'importe quelle piste, fait basculer tout le groupe.
     #[id = "variation"]
@@ -96,7 +129,7 @@ impl Default for CrParams {
         Self {
             editor_state: EguiState::from_size(720, 590),
             history: Arc::new(RwLock::new(CrHistory::default())),
-            vars: Arc::new(RwLock::new([0; 4])),
+            vars: Watched::new([0; 4]),
             variation: EnumParam::new("Variation", Variation::Live),
             letter: EnumParam::new("Letter", Letter::A),
             group: IntParam::new("Group", 1, IntRange::Linear { min: 1, max: 4 }),
@@ -203,8 +236,14 @@ impl Plugin for HappyAccidentCr {
             .unwrap_or(0xC411);
         // Si le groupe est vide, on y met les réglages sauvegardés de cette instance
         // Variations sauvegardées avec le projet (seulement si le groupe n'en a pas déjà)
-        if let Ok(v) = self.params.vars.read() {
-            init_vars(self.params.group_index(), &v);
+        // Un état vient d'être rechargé par Ableton : il s'applique à tout le groupe, même s'il tourne déjà.
+        // Sinon (nouvelle instance, changement de fréquence d'échantillonnage…) on ne touche à rien.
+        if let Ok(v) = self.params.vars.value.read() {
+            if self.params.vars.loaded.swap(false, Ordering::AcqRel) {
+                force_vars(self.params.group_index(), &v);
+            } else {
+                init_vars(self.params.group_index(), &v);
+            }
         }
         self.last_var = None;
         let eff = self.params.current();
@@ -276,9 +315,9 @@ impl Plugin for HappyAccidentCr {
         }
 
         let snap = snapshot_vars(group);
-        let vars_stale = self.params.vars.try_read().map(|v| *v != snap).unwrap_or(false);
+        let vars_stale = self.params.vars.value.try_read().map(|v| *v != snap).unwrap_or(false);
         if vars_stale {
-            if let Ok(mut v) = self.params.vars.try_write() {
+            if let Ok(mut v) = self.params.vars.value.try_write() {
                 *v = snap;
             }
         }

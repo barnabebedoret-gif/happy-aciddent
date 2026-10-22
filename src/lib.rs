@@ -10,6 +10,7 @@ pub mod cr;
 pub mod dub;
 mod editor;
 pub mod engine;
+pub mod presets;
 
 use engine::{Engine, History, Macros, Scale, Transport, NUM_MODULES};
 
@@ -78,6 +79,9 @@ pub struct Shared {
     pub next: AtomicU32,
     /// Un compteur par module : chaque clic allume / éteint le module
     pub toggle: [AtomicU32; NUM_MODULES],
+    /// Preset d'usine demandé par l'interface (compteur + index)
+    pub preset_cmd: AtomicU32,
+    pub preset_idx: AtomicU32,
     /// Copie de l'état pour l'affichage
     pub display: Mutex<History>,
 }
@@ -139,7 +143,7 @@ fn percent(name: &str, default: f32) -> FloatParam {
 impl Default for HaParams {
     fn default() -> Self {
         Self {
-            editor_state: EguiState::from_size(720, 520),
+            editor_state: EguiState::from_size(720, 556),
             history: Arc::new(RwLock::new(History::default())),
             chaos: percent("Chaos", 0.6),
             balance: FloatParam::new("Timbre <> Pattern", 0.5, FloatRange::Linear { min: 0.0, max: 1.0 })
@@ -206,6 +210,7 @@ pub struct HappyAccident {
     engine: Option<Engine>,
     seen: [u32; 4],
     seen_toggle: [u32; NUM_MODULES],
+    seen_preset: u32,
     last_accident_param: bool,
     last_mutate_param: bool,
     dirty: bool,
@@ -221,11 +226,14 @@ impl Default for HappyAccident {
                 prev: AtomicU32::new(0),
                 next: AtomicU32::new(0),
                 toggle: [const { AtomicU32::new(0) }; NUM_MODULES],
+                preset_cmd: AtomicU32::new(0),
+                preset_idx: AtomicU32::new(0),
                 display: Mutex::new(History::default()),
             }),
             engine: None,
             seen: [0; 4],
             seen_toggle: [0; NUM_MODULES],
+            seen_preset: 0,
             last_accident_param: false,
             last_mutate_param: false,
             dirty: true,
@@ -273,6 +281,7 @@ impl Plugin for HappyAccident {
         for i in 0..NUM_MODULES {
             self.seen_toggle[i] = self.shared.toggle[i].load(Ordering::Relaxed);
         }
+        self.seen_preset = self.shared.preset_cmd.load(Ordering::Relaxed);
         self.seen = [
             self.shared.accident.load(Ordering::Relaxed),
             self.shared.mutate.load(Ordering::Relaxed),
@@ -290,6 +299,15 @@ impl Plugin for HappyAccident {
         let macros = self.params.macros();
 
         // Commandes venant de l'interface
+        let pc = self.shared.preset_cmd.load(Ordering::Relaxed);
+        if pc != self.seen_preset {
+            self.seen_preset = pc;
+            let idx = self.shared.preset_idx.load(Ordering::Relaxed) as usize;
+            if let Some(p) = presets::PRESETS.get(idx) {
+                engine.load_patch((p.build)());
+                self.dirty = true;
+            }
+        }
         for i in 0..NUM_MODULES {
             let v = self.shared.toggle[i].load(Ordering::Relaxed);
             if v != self.seen_toggle[i] {

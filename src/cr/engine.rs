@@ -254,6 +254,24 @@ pub fn snapshot_vars(group: usize) -> [u64; 4] {
     [live, SLOTS[g][0].load(Ordering::Acquire), SLOTS[g][1].load(Ordering::Acquire), active_variation(g) as u64]
 }
 
+/// Applique un état rechargé par Ableton (preset, piste copiée…) à tout le groupe, même s'il tourne déjà.
+pub fn force_vars(group: usize, saved: &[u64; 4]) {
+    let g = group % NUM_GROUPS;
+    if saved[..3].iter().all(|&v| v == 0) {
+        return;
+    }
+    LIVE[g].store(saved[0], Ordering::Release);
+    SLOTS[g][0].store(saved[1], Ordering::Release);
+    SLOTS[g][1].store(saved[2], Ordering::Release);
+    let a = (saved[3] as u8).min(NUM_SLOTS as u8);
+    let playing = if a == VAR_LIVE { saved[0] } else { saved[a as usize] };
+    let (a, playing) = if playing == 0 { (VAR_LIVE, saved[0]) } else { (a, playing) };
+    if playing != 0 {
+        ACTIVE[g].store(a, Ordering::Release);
+        GROUPS[g].store(playing, Ordering::Release);
+    }
+}
+
 /// Restaure l'état sauvegardé si le groupe n'a encore rien en mémoire.
 pub fn init_vars(group: usize, saved: &[u64; 4]) {
     let g = group % NUM_GROUPS;

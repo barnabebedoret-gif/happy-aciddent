@@ -19,7 +19,7 @@ const TEXT: Color32 = Color32::from_rgb(226, 226, 228);
 pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Editor>> {
     create_egui_editor(
         params.editor_state.clone(),
-        (),
+        None::<usize>,
         |ctx, _| {
             let mut style = (*ctx.style()).clone();
             style.visuals = egui::Visuals::dark();
@@ -29,7 +29,7 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
             style.spacing.item_spacing = Vec2::new(8.0, 6.0);
             ctx.set_style(style);
         },
-        move |ctx, setter, _| {
+        move |ctx, setter, chosen| {
             let hist: History = shared.display.lock().map(|h| *h).unwrap_or_default();
             let patch = hist.current();
 
@@ -52,6 +52,50 @@ pub fn create(params: Arc<HaParams>, shared: Arc<Shared>) -> Option<Box<dyn Edit
                     });
                 });
                 ui.add_space(8.0);
+
+                // ---------------- Presets d'usine
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("PRESET").size(12.0).color(DIM)).on_hover_text(
+                        "Factory presets: a full set of effects plus the CHAOS, TIMBRE / PATTERN, MOVEMENT and SPEED settings \
+                         and the recommended LOCKs. Load one, then use ACCIDENT and MUTATE to explore around it.",
+                    );
+                    let current = chosen.map(|i| crate::presets::PRESETS[i].name).unwrap_or("Choose a preset…");
+                    egui::ComboBox::from_id_salt("gen_preset").width(280.0).selected_text(current).show_ui(ui, |ui| {
+                        for (cat, title) in crate::presets::CATEGORY_NAMES {
+                            ui.label(RichText::new(title).size(11.0).strong().color(DIM));
+                            for (i, p) in crate::presets::PRESETS.iter().enumerate().filter(|(_, p)| p.category == cat) {
+                                if ui.selectable_label(*chosen == Some(i), p.name).on_hover_text(p.tip).clicked() {
+                                    let set = |param: &FloatParam, v: f32| {
+                                        setter.begin_set_parameter(param);
+                                        setter.set_parameter(param, v);
+                                        setter.end_set_parameter(param);
+                                    };
+                                    set(&params.chaos, p.chaos);
+                                    set(&params.balance, p.balance);
+                                    set(&params.movement, p.movement);
+                                    set(&params.mix, 1.0);
+                                    let speed = [crate::SpeedParam::Quarter, crate::SpeedParam::Half, crate::SpeedParam::Normal, crate::SpeedParam::Double, crate::SpeedParam::Quad][(p.speed as usize).min(4)];
+                                    setter.begin_set_parameter(&params.speed);
+                                    setter.set_parameter(&params.speed, speed);
+                                    setter.end_set_parameter(&params.speed);
+                                    for (k, lp) in params.lock_params().iter().enumerate() {
+                                        setter.begin_set_parameter(*lp);
+                                        setter.set_parameter(*lp, p.locks[k]);
+                                        setter.end_set_parameter(*lp);
+                                    }
+                                    shared.preset_idx.store(i as u32, Ordering::Relaxed);
+                                    shared.preset_cmd.fetch_add(1, Ordering::Relaxed);
+                                    *chosen = Some(i);
+                                }
+                            }
+                            ui.add_space(4.0);
+                        }
+                    });
+                    if let Some(i) = *chosen {
+                        ui.label(RichText::new("hover for tips").size(11.0).color(DIM)).on_hover_text(crate::presets::PRESETS[i].tip);
+                    }
+                });
+                ui.add_space(6.0);
 
                 // ---------------- Boutons principaux
                 ui.horizontal(|ui| {

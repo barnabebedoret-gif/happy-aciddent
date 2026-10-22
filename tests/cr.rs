@@ -141,3 +141,31 @@ fn presets_donnent_les_bons_patterns() {
     assert_eq!(load_group(g), Some(plain.live));
     assert_eq!(slot(g, 0), with.var1);
 }
+
+#[test]
+fn etat_recharge_sapplique_au_groupe() {
+    use happy_accident::cr::engine::{force_vars, init_vars, snapshot_vars};
+    use happy_accident::cr::Watched;
+    use nih_plug::params::persist::PersistentField;
+    let g = 0;
+    let running = CrSettings::default().accident(500, 1.0);
+    store_group(g, &running);
+    let other = running.accident(600, 1.0);
+    let saved = [other.pack(), 0, 0, 0];
+    // Nouvelle instance / réinitialisation simple : le groupe qui tourne n'est pas écrasé
+    init_vars(g, &saved);
+    assert_eq!(load_group(g), Some(running));
+    // État rechargé par Ableton : il s'applique à tout le groupe
+    force_vars(g, &saved);
+    assert_eq!(load_group(g), Some(other));
+    assert_eq!(snapshot_vars(g)[0], other.pack());
+    // Un état vide ne doit jamais rien effacer
+    force_vars(g, &[0, 0, 0, 0]);
+    assert_eq!(load_group(g), Some(other));
+    // Le marqueur "rechargé" s'allume quand Ableton restaure la valeur
+    let w = Watched::new([0u64; 4]);
+    assert!(!w.loaded.load(std::sync::atomic::Ordering::Acquire));
+    w.set(saved);
+    assert!(w.loaded.load(std::sync::atomic::Ordering::Acquire));
+    assert_eq!(w.map(|v| *v), saved);
+}

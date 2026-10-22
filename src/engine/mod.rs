@@ -217,6 +217,12 @@ impl Engine {
     }
 
     /// Allume ou éteint un module dans l'accident en cours (sans créer de nouvel accident).
+    /// Charge un patch complet (preset d'usine) comme nouvel accident.
+    pub fn load_patch(&mut self, p: Patch) {
+        self.history.push(p);
+        self.switch_to(p);
+    }
+
     pub fn toggle_module(&mut self, i: usize) {
         if i >= NUM_MODULES {
             return;

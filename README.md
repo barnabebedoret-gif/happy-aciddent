@@ -32,6 +32,8 @@ Multi-FX aléatoire pour transformer des leads et trouver des idées. Format VST
 - ACCIDENT et MUTATE sont aussi des paramètres, donc tu peux les mapper sur un pad MIDI (Configure dans Ableton).
 - Un limiteur et une compensation de volume protègent la sortie.
 
+- **PRESET** : 15 presets d'usine (7 BASICS, 8 PUSHED). Chacun règle les effets, leur ordre, CHAOS, TIMBRE / PATTERN, MOVEMENT, SPEED et les LOCK conseillés. Charge-en un, puis explore autour avec ACCIDENT et MUTATE.
+
 Astuce : quand un accident sonne, resample-le (piste audio en entrée Resampling) puis travaille-le comme un nouveau lead.
 
 ## Développement
