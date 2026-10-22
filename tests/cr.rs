@@ -79,3 +79,39 @@ fn les_instances_partagent_le_groupe() {
     let c = CrSettings::default().accident(999, 1.0);
     assert_eq!(init_group(3, &c), b);
 }
+
+#[test]
+fn variations_live_1_2() {
+    use happy_accident::cr::engine::{active_variation, save_slot, select_variation, slot, snapshot_vars, VAR_LIVE};
+    let g = 2;
+    let a = CrSettings::default().accident(111, 1.0);
+    store_group(g, &a);
+    assert_eq!(active_variation(g), VAR_LIVE);
+    // Une variation vide ne fait rien
+    assert!(!select_variation(g, 2));
+    assert_eq!(load_group(g), Some(a));
+    // Sauvegarde dans 1, nouveau pattern, sauvegarde dans 2
+    save_slot(g, 0);
+    let b = a.accident(222, 1.0);
+    store_group(g, &b);
+    save_slot(g, 1);
+    assert_eq!(slot(g, 0), Some(a));
+    assert_eq!(slot(g, 1), Some(b));
+    // Rappel de 1 puis 2 : tout le groupe suit
+    assert!(select_variation(g, 1));
+    assert_eq!(load_group(g), Some(a));
+    assert!(select_variation(g, 2));
+    assert_eq!(load_group(g), Some(b));
+    // ACCIDENT pendant qu'on joue la variation 2 : on repasse en LIVE, la variation 2 est intacte
+    let c = b.accident(333, 1.0);
+    store_group(g, &c);
+    assert_eq!(active_variation(g), VAR_LIVE);
+    assert_eq!(slot(g, 1), Some(b));
+    // Retour en LIVE après un rappel : on retrouve le pattern de travail
+    assert!(select_variation(g, 1));
+    assert!(select_variation(g, VAR_LIVE));
+    assert_eq!(load_group(g), Some(c));
+    // L'état complet est sauvegardable
+    let snap = snapshot_vars(g);
+    assert_eq!(snap, [c.pack(), a.pack(), b.pack(), 0]);
+}

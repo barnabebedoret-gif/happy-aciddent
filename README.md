@@ -60,3 +60,5 @@ Pose une instance sur chaque piste (2 à 4 samples) et donne une **lettre** à c
 - **DEPTH** : à 100 %, les autres lettres sont coupées ; plus bas, elles sont seulement baissées (effet de ducking). **FADE** : la durée des fondus entre les tours.
 - Le pattern suit la position de lecture d'Ableton : il retombe toujours au même endroit.
 - Limite : la synchro automatique fonctionne entre instances chargées dans le même processus, ce qui est le cas par défaut dans Ableton.
+- **VARIATIONS** : LIVE + 2 patterns sauvegardés. Clic droit sur 1 ou 2 (ou SAVE puis clic) pour sauvegarder ce qu'on entend ; clic pour rappeler, pour tout le groupe. ACCIDENT, MUTATE et les réglages modifient toujours LIVE, jamais une variation sauvegardée.
+- **Automation** : le paramètre **Variation** (Live / 1 / 2), à automatiser sur une seule piste, fait basculer tout le groupe pendant l'arrangement.

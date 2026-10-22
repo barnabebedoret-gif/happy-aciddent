@@ -29,7 +29,7 @@ fn chip(ui: &mut egui::Ui, text: &str, selected: bool, color: Color32, w: f32) -
 pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Editor>> {
     create_egui_editor(
         params.editor_state.clone(),
-        0u64,
+        (0u64, false),
         |ctx, _| {
             let mut style = (*ctx.style()).clone();
             style.visuals = egui::Visuals::dark();
@@ -95,10 +95,10 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                 ui.horizontal(|ui| {
                     let acc = egui::Button::new(RichText::new("ACCIDENT").size(24.0).strong().color(BG)).fill(my_color).min_size(Vec2::new(300.0, 52.0));
                     if ui.add(acc).on_hover_text("New pattern for the whole group. With a high CHAOS, the turn length, steps and mode can change too.").clicked() {
-                        *seed_state = crate::engine::rng::mix(
-                            *seed_state ^ std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1),
+                        seed_state.0 = crate::engine::rng::mix(
+                            seed_state.0 ^ std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1),
                         );
-                        params.commit(s.accident((*seed_state >> 40) as u32, params.chaos.value()));
+                        params.commit(s.accident((seed_state.0 >> 40) as u32, params.chaos.value()));
                     }
                     let mt = egui::Button::new(RichText::new("MUTATE").size(18.0).strong().color(TEXT)).fill(PANEL).min_size(Vec2::new(150.0, 52.0));
                     if ui.add(mt).on_hover_text("Changes one step of the pattern.").clicked() {
@@ -127,6 +127,69 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
                     });
                 });
                 ui.add_space(10.0);
+
+                // ---------------- Variations : LIVE + 2 patterns sauvegardés
+                let group = params.group_index();
+                let active_var = super::engine::active_variation(group);
+                let armed = seed_state.1;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("VARIATIONS").size(12.0).color(DIM)).on_hover_text(
+                        "LIVE is the pattern you work on. 1 and 2 are saved patterns. Click to switch the whole group. \
+                         To switch during your arrangement, automate the Variation parameter on ONE track only.",
+                    );
+                    // LIVE
+                    let live_sel = active_var == super::engine::VAR_LIVE;
+                    let lb = egui::Button::new(RichText::new("LIVE").size(14.0).strong().color(if live_sel { BG } else { TEXT }))
+                        .fill(if live_sel { LETTER_COLORS[0] } else { PANEL })
+                        .min_size(Vec2::new(64.0, 34.0));
+                    if ui.add(lb).on_hover_text("The pattern you are working on. ACCIDENT, MUTATE and the settings always edit LIVE.").clicked() {
+                        set_variation(&params, setter, group, 0);
+                    }
+                    // Variations 1 et 2 : mini-bande du pattern ; clic = rappeler, clic droit = sauvegarder
+                    for k in 0..super::engine::NUM_SLOTS {
+                        let v = k as u8 + 1;
+                        let saved = super::engine::slot(group, k);
+                        let (rect, resp) = ui.allocate_exact_size(Vec2::new(150.0, 34.0), egui::Sense::click());
+                        let sel = active_var == v;
+                        let painter = ui.painter_at(rect.expand(3.0));
+                        let stroke = if armed { egui::Stroke::new(2.0_f32, LETTER_COLORS[3]) } else if sel { egui::Stroke::new(2.0_f32, LETTER_COLORS[0]) } else { egui::Stroke::NONE };
+                        painter.rect_filled(rect, 6.0, if sel { Color32::from_rgb(44, 44, 50) } else { PANEL });
+                        if stroke.width > 0.0 {
+                            painter.rect_stroke(rect, 6.0, stroke, egui::StrokeKind::Inside);
+                        }
+                        painter.text(egui::pos2(rect.left() + 14.0, rect.center().y), egui::Align2::CENTER_CENTER, v.to_string(), egui::FontId::proportional(16.0), TEXT);
+                        match saved {
+                            Some(sv) => {
+                                let pat = sv.pattern();
+                                let n = sv.len();
+                                let x0 = rect.left() + 28.0;
+                                let w = (rect.width() - 36.0) / n as f32;
+                                for (c, &p) in pat[..n].iter().enumerate() {
+                                    let r = egui::Rect::from_min_size(egui::pos2(x0 + c as f32 * w, rect.top() + 9.0), Vec2::new((w - 1.0).max(1.0), 16.0));
+                                    let col = if p == SILENT { Color32::from_rgb(50, 50, 56) } else { LETTER_COLORS[p as usize] };
+                                    painter.rect_filled(r, 2.0, col);
+                                }
+                            }
+                            None => {
+                                painter.text(egui::pos2(rect.left() + 28.0, rect.center().y), egui::Align2::LEFT_CENTER, "empty", egui::FontId::proportional(12.0), DIM);
+                            }
+                        }
+                        let resp = resp.on_hover_text("Click: play this variation (whole group). Right-click, or SAVE then click: store what you hear now in this slot.");
+                        if resp.secondary_clicked() || (armed && resp.clicked()) {
+                            super::engine::save_slot(group, k);
+                            seed_state.1 = false;
+                        } else if resp.clicked() && saved.is_some() {
+                            set_variation(&params, setter, group, v);
+                        }
+                    }
+                    let sb = egui::Button::new(RichText::new(if armed { "SAVE TO…" } else { "SAVE" }).size(13.0).strong().color(if armed { BG } else { TEXT }))
+                        .fill(if armed { LETTER_COLORS[3] } else { PANEL })
+                        .min_size(Vec2::new(78.0, 34.0));
+                    if ui.add(sb).on_hover_text("Click SAVE, then click slot 1 or 2 to store the pattern you hear now. (Shortcut: right-click a slot.)").clicked() {
+                        seed_state.1 = !armed;
+                    }
+                });
+                ui.add_space(6.0);
 
                 // ---------------- Timeline du pattern
                 let avail = ui.available_width();
@@ -215,4 +278,16 @@ pub fn create(params: Arc<CrParams>, shared: Arc<CrShared>) -> Option<Box<dyn Ed
             ctx.request_repaint_after(std::time::Duration::from_millis(40));
         },
     )
+}
+
+/// Bascule la variation : on passe par le paramètre (pour l'automation), et on bascule
+/// directement si le paramètre avait déjà cette valeur.
+fn set_variation(params: &CrParams, setter: &ParamSetter, group: usize, v: u8) {
+    let already = params.variation.value().index() == v;
+    setter.begin_set_parameter(&params.variation);
+    setter.set_parameter(&params.variation, super::Variation::from_index(v));
+    setter.end_set_parameter(&params.variation);
+    if already {
+        super::engine::select_variation(group, v);
+    }
 }

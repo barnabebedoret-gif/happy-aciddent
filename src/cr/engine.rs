@@ -7,7 +7,7 @@
 
 use crate::engine::rng::Rng;
 use crate::engine::Transport;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 
 pub const NUM_GROUPS: usize = 4;
 pub const LETTERS: [&str; 4] = ["A", "B", "C", "D"];
@@ -173,8 +173,91 @@ pub fn load_group(group: usize) -> Option<CrSettings> {
     CrSettings::unpack(GROUPS[group % NUM_GROUPS].load(Ordering::Acquire))
 }
 
+/// Applique des réglages au groupe depuis ACCIDENT, MUTATE ou les réglages.
+/// On revient toujours sur LIVE : une variation sauvegardée n'est jamais modifiée par erreur.
 pub fn store_group(group: usize, s: &CrSettings) {
-    GROUPS[group % NUM_GROUPS].store(s.pack(), Ordering::Release);
+    let g = group % NUM_GROUPS;
+    let v = s.pack();
+    LIVE[g].store(v, Ordering::Release);
+    ACTIVE[g].store(VAR_LIVE, Ordering::Release);
+    GROUPS[g].store(v, Ordering::Release);
+}
+
+// ---------------------------------------------------------------- VARIATIONS
+/// LIVE = le pattern de travail ; 1 et 2 = deux patterns sauvegardés, à rappeler en un clic
+/// ou avec une seule automation (paramètre Variation).
+pub const NUM_SLOTS: usize = 2;
+pub const VAR_LIVE: u8 = 0;
+pub static LIVE: [AtomicU64; NUM_GROUPS] = [const { AtomicU64::new(0) }; NUM_GROUPS];
+pub static SLOTS: [[AtomicU64; NUM_SLOTS]; NUM_GROUPS] = [const { [const { AtomicU64::new(0) }; NUM_SLOTS] }; NUM_GROUPS];
+/// 0 = LIVE, 1..=2 = variation
+pub static ACTIVE: [AtomicU8; NUM_GROUPS] = [const { AtomicU8::new(0) }; NUM_GROUPS];
+
+pub fn active_variation(group: usize) -> u8 {
+    ACTIVE[group % NUM_GROUPS].load(Ordering::Acquire).min(NUM_SLOTS as u8)
+}
+
+pub fn slot(group: usize, k: usize) -> Option<CrSettings> {
+    CrSettings::unpack(SLOTS[group % NUM_GROUPS][k % NUM_SLOTS].load(Ordering::Acquire))
+}
+
+/// Sauvegarde ce qu'on entend en ce moment dans la variation `k` (0 ou 1).
+pub fn save_slot(group: usize, k: usize) {
+    let g = group % NUM_GROUPS;
+    let cur = GROUPS[g].load(Ordering::Acquire);
+    if cur != 0 {
+        SLOTS[g][k % NUM_SLOTS].store(cur, Ordering::Release);
+    }
+}
+
+/// Bascule tout le groupe : 0 = LIVE, 1 ou 2 = variation. Une variation vide est ignorée.
+/// Retourne vrai si la bascule a eu lieu.
+pub fn select_variation(group: usize, v: u8) -> bool {
+    let g = group % NUM_GROUPS;
+    let target = if v == VAR_LIVE {
+        let live = LIVE[g].load(Ordering::Acquire);
+        if live == 0 { GROUPS[g].load(Ordering::Acquire) } else { live }
+    } else {
+        SLOTS[g][(v as usize - 1) % NUM_SLOTS].load(Ordering::Acquire)
+    };
+    if target == 0 {
+        return false;
+    }
+    // On garde une trace du pattern de travail avant de le quitter
+    if active_variation(g) == VAR_LIVE {
+        let cur = GROUPS[g].load(Ordering::Acquire);
+        if cur != 0 {
+            LIVE[g].store(cur, Ordering::Release);
+        }
+    }
+    ACTIVE[g].store(v.min(NUM_SLOTS as u8), Ordering::Release);
+    GROUPS[g].store(target, Ordering::Release);
+    true
+}
+
+/// État à sauvegarder avec le projet : [LIVE, variation 1, variation 2, actif].
+pub fn snapshot_vars(group: usize) -> [u64; 4] {
+    let g = group % NUM_GROUPS;
+    let live = if active_variation(g) == VAR_LIVE { GROUPS[g].load(Ordering::Acquire) } else { LIVE[g].load(Ordering::Acquire) };
+    [live, SLOTS[g][0].load(Ordering::Acquire), SLOTS[g][1].load(Ordering::Acquire), active_variation(g) as u64]
+}
+
+/// Restaure l'état sauvegardé si le groupe n'a encore rien en mémoire.
+pub fn init_vars(group: usize, saved: &[u64; 4]) {
+    let g = group % NUM_GROUPS;
+    let empty = LIVE[g].load(Ordering::Acquire) == 0 && SLOTS[g].iter().all(|v| v.load(Ordering::Acquire) == 0);
+    if !empty || saved[..3].iter().all(|&v| v == 0) {
+        return;
+    }
+    LIVE[g].store(saved[0], Ordering::Release);
+    SLOTS[g][0].store(saved[1], Ordering::Release);
+    SLOTS[g][1].store(saved[2], Ordering::Release);
+    let a = (saved[3] as u8).min(NUM_SLOTS as u8);
+    let playing = if a == VAR_LIVE { saved[0] } else { saved[a as usize] };
+    if playing != 0 {
+        ACTIVE[g].store(a, Ordering::Release);
+        GROUPS[g].store(playing, Ordering::Release);
+    }
 }
 
 /// Initialise le groupe avec ces réglages s'il est encore vide ; retourne les réglages en vigueur.

@@ -5,7 +5,7 @@ mod editor;
 pub mod engine;
 
 use crate::engine::{Hist, Transport};
-use engine::{init_group, load_group, store_group, CrGate, CrSettings};
+use engine::{init_group, init_vars, load_group, select_variation, snapshot_vars, store_group, CrGate, CrSettings, VAR_LIVE};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -35,6 +35,29 @@ impl Letter {
 
 pub type CrHistory = Hist<u64>;
 
+#[derive(Enum, PartialEq, Eq, Clone, Copy, Debug)]
+pub enum Variation {
+    #[name = "Live"]
+    Live,
+    #[name = "1"]
+    V1,
+    #[name = "2"]
+    V2,
+}
+
+impl Variation {
+    pub fn index(self) -> u8 {
+        match self {
+            Variation::Live => 0,
+            Variation::V1 => 1,
+            Variation::V2 => 2,
+        }
+    }
+    pub fn from_index(i: u8) -> Variation {
+        [Variation::Live, Variation::V1, Variation::V2][(i as usize).min(2)]
+    }
+}
+
 #[derive(Params)]
 pub struct CrParams {
     #[persist = "editor-state"]
@@ -42,6 +65,13 @@ pub struct CrParams {
     /// Historique des réglages (le courant est sauvegardé avec le projet)
     #[persist = "cr-history"]
     pub history: Arc<RwLock<CrHistory>>,
+    /// [LIVE, variation 1, variation 2, actif], sauvegardés avec le projet
+    #[persist = "cr-vars"]
+    pub vars: Arc<RwLock<[u64; 4]>>,
+
+    /// Live, 1 ou 2. Une seule automation, sur n'importe quelle piste, fait basculer tout le groupe.
+    #[id = "variation"]
+    pub variation: EnumParam<Variation>,
 
     #[id = "letter"]
     pub letter: EnumParam<Letter>,
@@ -63,8 +93,10 @@ pub struct CrParams {
 impl Default for CrParams {
     fn default() -> Self {
         Self {
-            editor_state: EguiState::from_size(720, 500),
+            editor_state: EguiState::from_size(720, 545),
             history: Arc::new(RwLock::new(CrHistory::default())),
+            vars: Arc::new(RwLock::new([0; 4])),
+            variation: EnumParam::new("Variation", Variation::Live),
             letter: EnumParam::new("Letter", Letter::A),
             group: IntParam::new("Group", 1, IntRange::Linear { min: 1, max: 4 }),
             depth: FloatParam::new("Depth", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 })
@@ -119,6 +151,8 @@ pub struct HappyAccidentCr {
     rng_state: u64,
     last_accident: bool,
     last_mutate: bool,
+    /// Dernière valeur vue du paramètre Variation (None = pas encore lue)
+    last_var: Option<u8>,
 }
 
 impl Default for HappyAccidentCr {
@@ -130,6 +164,7 @@ impl Default for HappyAccidentCr {
             rng_state: 0,
             last_accident: false,
             last_mutate: false,
+            last_var: None,
         }
     }
 }
@@ -166,6 +201,11 @@ impl Plugin for HappyAccidentCr {
             .map(|d| d.as_nanos() as u64)
             .unwrap_or(0xC411);
         // Si le groupe est vide, on y met les réglages sauvegardés de cette instance
+        // Variations sauvegardées avec le projet (seulement si le groupe n'en a pas déjà)
+        if let Ok(v) = self.params.vars.read() {
+            init_vars(self.params.group_index(), &v);
+        }
+        self.last_var = None;
         let eff = self.params.current();
         if let Ok(mut h) = self.params.history.write() {
             if h.current() == 0 {
@@ -187,6 +227,16 @@ impl Plugin for HappyAccidentCr {
             return ProcessStatus::Normal;
         };
         let group = self.params.group_index();
+
+        // Paramètre Variation : on ne réagit qu'aux changements (automation, clic), jamais à la
+        // valeur au chargement, pour que plusieurs instances ne se battent pas
+        let var = self.params.variation.value().index();
+        if let Some(prev) = self.last_var {
+            if prev != var {
+                select_variation(group, var);
+            }
+        }
+        self.last_var = Some(var);
         let mut s = match load_group(group) {
             Some(s) => s,
             None => {
@@ -214,12 +264,21 @@ impl Plugin for HappyAccidentCr {
 
         // L'historique de cette instance suit les changements faits depuis n'importe quelle instance
         let packed = s.pack();
-        let stale = self.params.history.try_read().map(|h| h.current() != packed).unwrap_or(false);
+        // (on n'empile que le pattern de travail LIVE, pas les rappels de variations)
+        let stale = engine::active_variation(group) == VAR_LIVE && self.params.history.try_read().map(|h| h.current() != packed).unwrap_or(false);
         if stale {
             if let Ok(mut h) = self.params.history.try_write() {
                 if h.current() != packed {
                     h.push(packed);
                 }
+            }
+        }
+
+        let snap = snapshot_vars(group);
+        let vars_stale = self.params.vars.try_read().map(|v| *v != snap).unwrap_or(false);
+        if vars_stale {
+            if let Ok(mut v) = self.params.vars.try_write() {
+                *v = snap;
             }
         }
 
