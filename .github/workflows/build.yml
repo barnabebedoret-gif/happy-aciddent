@@ -65,6 +65,15 @@ jobs:
           (cd target/bundled && zip -qry "../../dist/HappyAccidentGenerator-$V-macOS-beta.zip" .)
 
       # ---------------- Publication
+      # Plugin seul, sans installeur .exe : moins bloqué par les navigateurs
+      - uses: actions/upload-artifact@v4
+        if: matrix.name == 'windows'
+        with:
+          name: HappyAccident-VST3-only-windows
+          path: |
+            target/bundled/*.vst3
+            INSTALL.md
+
       - uses: actions/upload-artifact@v4
         with:
           name: HappyAccidentGenerator-${{ matrix.name }}
