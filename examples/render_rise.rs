@@ -46,22 +46,16 @@ fn main() {
     let spec = hound::WavSpec { channels: 2, sample_rate: sr as u32, bits_per_sample: 16, sample_format: hound::SampleFormat::Int };
     let mut w = hound::WavWriter::create("demos/happy_accident_rise_demo.wav", spec).unwrap();
 
-    let mut on_full = [true; NUM_INGREDIENTS];
-    on_full[NOISE] = true;
-    let mut roll_gap = [false; NUM_INGREDIENTS];
-    for i in [LOW_CUT, SPACE, NOISE, ROLL, GAP] {
-        roll_gap[i] = true;
-    }
-    let examples: [(&str, [bool; NUM_INGREDIENTS], Curve, Amount, Tail); 4] = [
-        ("Défaut : LOW CUT + SPACE + WIDTH, Late, Normal, Cut", DEFAULT_ON, Curve::Late, Amount::Normal, Tail::Cut),
-        ("Snare roll : LOW CUT + SPACE + NOISE + ROLL + GAP, Linear, Normal", roll_gap, Curve::Linear, Amount::Normal, Tail::Cut),
-        ("Tout à fond : 8 ingrédients, Late, Extreme, Cut", on_full, Curve::Late, Amount::Extreme, Tail::Cut),
-        ("Défaut en TAIL Keep : la reverb continue sur le drop", DEFAULT_ON, Curve::Late, Amount::Normal, Tail::Keep),
+    let examples: [(&str, f32, f32, f32); 4] = [
+        ("Réglages par défaut : CUT 50 %, SPACE 50 %, ROLL 0 %", 0.5, 0.5, 0.0),
+        ("Avec ROLL : CUT 50 %, SPACE 50 %, ROLL 100 %", 0.5, 0.5, 1.0),
+        ("Radical : CUT 100 %, SPACE 100 %, ROLL 70 %", 1.0, 1.0, 0.7),
+        ("Léger : CUT 0 %, SPACE 30 %, ROLL 0 %", 0.0, 0.3, 0.0),
     ];
 
-    for (k, (name, on, curve, amount, tail)) in examples.iter().enumerate() {
+    for (k, (name, cut, space, roll)) in examples.iter().enumerate() {
         println!("{}. {}  (8 mesures de montée, puis drop de 4 mesures)", k + 1, name);
-        let mut e = RiseEngine::new(sr, 0x5153);
+        let mut e = RiseEngine::new(sr);
         let mut ol = l.clone();
         let mut or = r.clone();
         let mut pos = 0.0;
@@ -69,7 +63,7 @@ fn main() {
         for (cl, cr) in ol.chunks_mut(256).zip(or.chunks_mut(256)) {
             // Automation : rampe linéaire 0 → 100 % sur 8 mesures, puis 0 sur le drop
             let tension = if idx < build_len { idx as f32 / build_len as f32 } else { 0.0 };
-            let m = RiseMacros { tension, curve: *curve, amount: *amount, tail: *tail, on: *on, out_gain: 1.0 };
+            let m = RiseMacros { tension, cut: *cut, space: *space, roll: *roll };
             let t = Transport { tempo, playing: true, pos_beats: Some(pos) };
             e.process(cl, cr, &m, &t);
             pos += cl.len() as f64 * tempo / 60.0 / sr as f64;
