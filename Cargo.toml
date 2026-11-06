@@ -23,6 +23,10 @@ required-features = ["standalone"]
 name = "standalone_cr"
 required-features = ["standalone"]
 
+[[bin]]
+name = "standalone_rise"
+required-features = ["standalone"]
+
 [dependencies]
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
 nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }

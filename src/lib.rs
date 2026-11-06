@@ -11,6 +11,7 @@ pub mod dub;
 mod editor;
 pub mod engine;
 pub mod presets;
+pub mod rise;
 
 use engine::{Engine, History, Macros, Scale, Transport, NUM_MODULES};
 
@@ -387,5 +388,5 @@ impl Vst3Plugin for HappyAccident {
     const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = &[Vst3SubCategory::Fx, Vst3SubCategory::Distortion];
 }
 
-nih_export_clap!(HappyAccident, dub::HappyAccidentDub, cr::HappyAccidentCr);
-nih_export_vst3!(HappyAccident, dub::HappyAccidentDub, cr::HappyAccidentCr);
+nih_export_clap!(HappyAccident, dub::HappyAccidentDub, cr::HappyAccidentCr, rise::HappyAccidentRise);
+nih_export_vst3!(HappyAccident, dub::HappyAccidentDub, cr::HappyAccidentCr, rise::HappyAccidentRise);

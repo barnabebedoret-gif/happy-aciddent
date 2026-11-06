@@ -65,3 +65,23 @@ Pose une instance sur chaque piste (2 à 4 samples) et donne une **lettre** à c
 - **VARIATIONS** : LIVE + 2 patterns sauvegardés. Clic droit sur 1 ou 2 (ou SAVE puis clic) pour sauvegarder ce qu'on entend ; clic pour rappeler, pour tout le groupe. ACCIDENT, MUTATE et les réglages modifient toujours LIVE, jamais une variation sauvegardée.
 - **Automation** : le paramètre **Variation** (Live / 1 / 2), à automatiser sur une seule piste, fait basculer tout le groupe pendant l'arrangement.
 - **PRESET** : 17 presets d'usine en trois familles. BASICS pour les usages de base, PUSHED pour aller plus loin (1/16, 4 voix, silences, polyrythmes), WITH VARIATIONS qui remplissent aussi les variations 1 et 2 (Build-Up Ramp, Verse / Drop, Total Chaos). Survole un preset pour lire comment l'utiliser. Les graines des patterns sont fixées et vérifiées par les tests ; `examples/find_seeds.rs` sert à en trouver de nouvelles.
+
+## Happy Accident RISE (4e plugin, même installeur)
+Un seul gros bouton, **TENSION**, pour créer la montée avant le drop. Automatise-le de 0 à 100 % sur les 8 ou 16 mesures avant le drop, puis remets-le à 0 sur le drop : tout revient d'un coup, sans rampe. À 0 %, le son passe strictement intact.
+- **8 ingrédients**, chacun s'allume ou s'éteint au clic :
+  - **LOW CUT** (activé par défaut) : passe-haut 24 dB de 20 Hz à environ 600 Hz, avec une légère résonance en fin de course.
+  - **SPACE** (activé par défaut) : la reverb monte et sa queue s'allonge.
+  - **WIDTH** (activé par défaut) : la stéréo s'élargit.
+  - **NOISE** : riser de bruit blanc filtré intégré.
+  - **ROLL** : gate rythmé qui accélère (1/4, 1/8, 1/16, 1/32), calé sur le tempo.
+  - **DRIVE** : saturation progressive.
+  - **PITCH** : monte de +1 à +3 demi-tons dans le dernier tiers.
+  - **GAP** : coupe le son au-dessus de 97 % de TENSION, soit environ le dernier temps d'une rampe de 8 mesures. La reverb continue.
+- **CURVE** : Late (presque rien au début, tout explose à la fin) ou Linear.
+- **AMOUNT** : Subtle, Normal ou Extreme. Règle l'intensité de tous les ingrédients.
+- **TAIL** : sur le drop, Cut coupe la reverb net, Keep laisse la queue sonner.
+- **ACCIDENT** : tire une recette au hasard (ingrédients et courbe).
+- Sur le bouton, l'arc fin ambré montre l'intensité réellement appliquée après la courbe.
+- Une chute brutale de TENSION (plus de 15 %) est traitée comme un drop : les effets et la reverb (en mode Cut) sont remis à zéro immédiatement.
+- Démo : `cargo run --release --example render_rise` génère `demos/happy_accident_rise_demo.wav` (4 recettes, 8 mesures de montée et 4 mesures de drop chacune).
+- Interface en autonome : `cargo run --release --features standalone --bin standalone_rise`.
